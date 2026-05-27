@@ -43,6 +43,7 @@ interface AppData {
 }
 
 type LeftPanelView = 'files' | 'settings'
+type PrimaryView = 'debate' | 'speech'
 type FontStylePreset =
   | 'normal'
   | 'bold'
@@ -432,6 +433,10 @@ function App() {
   const [leftPanelView, setLeftPanelView] = useState<LeftPanelView>('files')
   const [leftPanelWidth, setLeftPanelWidth] = useState(290)
   const [isResizingLeftPanel, setIsResizingLeftPanel] = useState(false)
+  const [primaryView, setPrimaryView] = useState<PrimaryView>('debate')
+  const [isSplitView, setIsSplitView] = useState(false)
+  const [splitRatio, setSplitRatio] = useState(50)
+  const [isResizingSplit, setIsResizingSplit] = useState(false)
   const [activeTextColor, setActiveTextColor] = useState('#111827')
   const [activeTextSize, setActiveTextSize] = useState(15)
   const [activeHighlightColor, setActiveHighlightColor] = useState('#fff59d')
@@ -444,10 +449,18 @@ function App() {
     x: number
     y: number
   } | null>(null)
+  const [activeEditorTarget, setActiveEditorTarget] = useState<PrimaryView>('debate')
   const editorRef = useRef<HTMLDivElement | null>(null)
+  const speechEditorRef = useRef<HTMLDivElement | null>(null)
+  const splitContainerRef = useRef<HTMLDivElement | null>(null)
   const leftResizeStateRef = useRef<{ startX: number; startWidth: number } | null>(
     null,
   )
+  const splitResizeStateRef = useRef<{
+    startX: number
+    startRatio: number
+    containerWidth: number
+  } | null>(null)
 
   const activeDebateDoc = useMemo(
     () => data.debateDocs.find((doc) => doc.id === data.activeDebateDocId) ?? null,
@@ -491,6 +504,16 @@ function App() {
       editorRef.current.innerHTML = activeDebateDoc.content
     }
   }, [activeDebateDoc?.id, activeDebateDoc?.content])
+
+  useEffect(() => {
+    if (!speechEditorRef.current || !activeSpeechDoc) {
+      return
+    }
+
+    if (speechEditorRef.current.innerHTML !== activeSpeechDoc.content) {
+      speechEditorRef.current.innerHTML = activeSpeechDoc.content
+    }
+  }, [activeSpeechDoc?.id, activeSpeechDoc?.content])
 
   useEffect(() => {
     setActiveTextColor(data.settings.textStyles.defaultText.color)
@@ -538,6 +561,45 @@ function App() {
       window.removeEventListener('mouseup', onMouseUp)
     }
   }, [isResizingLeftPanel])
+
+  useEffect(() => {
+    if (!isResizingSplit) {
+      return
+    }
+
+    const onMouseMove = (event: MouseEvent) => {
+      const resizeState = splitResizeStateRef.current
+      if (!resizeState) {
+        return
+      }
+
+      const delta = event.clientX - resizeState.startX
+      const deltaPercent = (delta / resizeState.containerWidth) * 100
+      const nextRatio = resizeState.startRatio + deltaPercent
+      const clampedRatio = Math.max(25, Math.min(75, nextRatio))
+      setSplitRatio(clampedRatio)
+    }
+
+    const onMouseUp = () => {
+      setIsResizingSplit(false)
+      splitResizeStateRef.current = null
+    }
+
+    const originalCursor = document.body.style.cursor
+    const originalUserSelect = document.body.style.userSelect
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
+
+    return () => {
+      document.body.style.cursor = originalCursor
+      document.body.style.userSelect = originalUserSelect
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
+    }
+  }, [isResizingSplit])
 
   useEffect(() => {
     const dismissContextMenu = () => {
@@ -794,7 +856,10 @@ function App() {
   }
 
   const sendToSpeech = () => {
-    if (!activeSpeechDoc || !editorRef.current) {
+    const sourceEditor =
+      activeEditorTarget === 'speech' ? speechEditorRef.current : editorRef.current
+
+    if (!activeSpeechDoc || !sourceEditor) {
       return
     }
 
@@ -807,7 +872,7 @@ function App() {
       wrapper.appendChild(selection.getRangeAt(0).cloneContents())
       html = wrapper.innerHTML
     } else {
-      html = editorRef.current.innerHTML
+      html = sourceEditor.innerHTML
     }
 
     mutateSpeechDoc(activeSpeechDoc.id, (speech) => {
@@ -823,6 +888,17 @@ function App() {
     }
     const nextContent = editorRef.current.innerHTML
     mutateActiveDebateDoc((doc) => {
+      doc.content = nextContent
+    })
+  }
+
+  const onSpeechEditorInput = () => {
+    if (!speechEditorRef.current || !activeSpeechDoc) {
+      return
+    }
+
+    const nextContent = speechEditorRef.current.innerHTML
+    mutateSpeechDoc(activeSpeechDoc.id, (doc) => {
       doc.content = nextContent
     })
   }
@@ -989,6 +1065,20 @@ function App() {
     setIsResizingLeftPanel(true)
   }
 
+  const startSplitResize = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (!splitContainerRef.current) {
+      return
+    }
+
+    event.preventDefault()
+    splitResizeStateRef.current = {
+      startX: event.clientX,
+      startRatio: splitRatio,
+      containerWidth: splitContainerRef.current.clientWidth || 1,
+    }
+    setIsResizingSplit(true)
+  }
+
   const shortcutsTable = (
     <table className="shortcuts-table">
       <thead>
@@ -1014,6 +1104,138 @@ function App() {
         ))}
       </tbody>
     </table>
+  )
+
+  const debatePane = activeDebateDoc ? (
+    <article className="editor-content">
+      <div className="pane-header">
+        <strong>Working Document</strong>
+        {isSplitView ? (
+          <button
+            type="button"
+            onClick={() => {
+              setPrimaryView('debate')
+              setIsSplitView(false)
+            }}
+          >
+            Open
+          </button>
+        ) : null}
+      </div>
+      <input
+        className="doc-title"
+        value={activeDebateDoc.title}
+        onFocus={() => setActiveEditorTarget('debate')}
+        onChange={(event) =>
+          mutateActiveDebateDoc((doc) => {
+            doc.title = event.target.value
+          })
+        }
+      />
+      <style>
+        {`
+          .single-editor {
+            font-family: ${data.settings.defaultFont};
+          }
+
+          .single-editor,
+          .single-editor p,
+          .single-editor div,
+          .single-editor li {
+            font-size: ${data.settings.textStyles.defaultText.fontSize}px;
+            font-weight: ${styleToCss(data.settings.textStyles.defaultText.style).fontWeight};
+            font-style: ${styleToCss(data.settings.textStyles.defaultText.style).fontStyle};
+            text-decoration: ${styleToCss(data.settings.textStyles.defaultText.style).textDecoration};
+            color: ${data.settings.textStyles.defaultText.color};
+          }
+
+          .single-editor h1 {
+            font-size: ${data.settings.textStyles.heading1.fontSize}px;
+            font-weight: ${styleToCss(data.settings.textStyles.heading1.style).fontWeight};
+            font-style: ${styleToCss(data.settings.textStyles.heading1.style).fontStyle};
+            text-decoration: ${styleToCss(data.settings.textStyles.heading1.style).textDecoration};
+            color: ${data.settings.textStyles.heading1.color};
+            text-align: ${data.settings.textStyles.heading1.align};
+          }
+
+          .single-editor h2 {
+            font-size: ${data.settings.textStyles.heading2.fontSize}px;
+            font-weight: ${styleToCss(data.settings.textStyles.heading2.style).fontWeight};
+            font-style: ${styleToCss(data.settings.textStyles.heading2.style).fontStyle};
+            text-decoration: ${styleToCss(data.settings.textStyles.heading2.style).textDecoration};
+            color: ${data.settings.textStyles.heading2.color};
+            text-align: ${data.settings.textStyles.heading2.align};
+          }
+
+          .single-editor h3 {
+            font-size: ${data.settings.textStyles.heading3.fontSize}px;
+            font-weight: ${styleToCss(data.settings.textStyles.heading3.style).fontWeight};
+            font-style: ${styleToCss(data.settings.textStyles.heading3.style).fontStyle};
+            text-decoration: ${styleToCss(data.settings.textStyles.heading3.style).textDecoration};
+            color: ${data.settings.textStyles.heading3.color};
+            text-align: ${data.settings.textStyles.heading3.align};
+          }
+
+          .single-editor .tag-text {
+            font-size: ${data.settings.textStyles.tag.fontSize}px;
+            font-weight: ${styleToCss(data.settings.textStyles.tag.style).fontWeight};
+            font-style: ${styleToCss(data.settings.textStyles.tag.style).fontStyle};
+            text-decoration: ${styleToCss(data.settings.textStyles.tag.style).textDecoration};
+            color: ${data.settings.textStyles.tag.color};
+          }
+        `}
+      </style>
+      <div
+        ref={editorRef}
+        className={`editor single-editor ${invisibilityMode ? 'invisibility' : ''}`}
+        contentEditable
+        suppressContentEditableWarning
+        onFocus={() => setActiveEditorTarget('debate')}
+        onInput={onEditorInput}
+        onKeyDown={onEditorKeyDown}
+      />
+    </article>
+  ) : (
+    <p>Select a document to begin editing.</p>
+  )
+
+  const speechPane = activeSpeechDoc ? (
+    <article className="editor-content">
+      <div className="pane-header">
+        <strong>Speech Document</strong>
+        {isSplitView ? (
+          <button
+            type="button"
+            onClick={() => {
+              setPrimaryView('speech')
+              setIsSplitView(false)
+            }}
+          >
+            Open
+          </button>
+        ) : null}
+      </div>
+      <input
+        className="doc-title"
+        value={activeSpeechDoc.title}
+        onFocus={() => setActiveEditorTarget('speech')}
+        onChange={(event) =>
+          mutateSpeechDoc(activeSpeechDoc.id, (doc) => {
+            doc.title = event.target.value
+          })
+        }
+      />
+      <div
+        ref={speechEditorRef}
+        className="editor speech-editor"
+        contentEditable
+        suppressContentEditableWarning
+        onFocus={() => setActiveEditorTarget('speech')}
+        onInput={onSpeechEditorInput}
+      />
+    </article>
+  ) : (
+    <p>Select a speech document.</p>
   )
 
   return (
@@ -1428,6 +1650,22 @@ function App() {
             <button type="button" onClick={() => setIsShortcutsDialogOpen(true)}>
               Keyboard Shortcuts
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                setIsSplitView((previous) => {
+                  if (!previous) {
+                    setSplitRatio(50)
+                  }
+                  return !previous
+                })
+                if (!isSplitView) {
+                  setPrimaryView('debate')
+                }
+              }}
+            >
+              {isSplitView ? 'Close Split' : 'Split View'}
+            </button>
             <button type="button" onClick={sendToSpeech}>
               Send to Speech
             </button>
@@ -1439,82 +1677,81 @@ function App() {
             </button>
           </div>
         </header>
+        <style>
+          {`
+            .single-editor {
+              font-family: ${data.settings.defaultFont};
+            }
 
-        {activeDebateDoc ? (
-          <article className="editor-content">
-            <input
-              className="doc-title"
-              value={activeDebateDoc.title}
-              onChange={(event) =>
-                mutateActiveDebateDoc((doc) => {
-                  doc.title = event.target.value
-                })
-              }
-            />
-            <style>
-              {`
-                .single-editor {
-                  font-family: ${data.settings.defaultFont};
-                }
+            .single-editor,
+            .single-editor p,
+            .single-editor div,
+            .single-editor li {
+              font-size: ${data.settings.textStyles.defaultText.fontSize}px;
+              font-weight: ${styleToCss(data.settings.textStyles.defaultText.style).fontWeight};
+              font-style: ${styleToCss(data.settings.textStyles.defaultText.style).fontStyle};
+              text-decoration: ${styleToCss(data.settings.textStyles.defaultText.style).textDecoration};
+              color: ${data.settings.textStyles.defaultText.color};
+            }
 
-                .single-editor,
-                .single-editor p,
-                .single-editor div,
-                .single-editor li {
-                  font-size: ${data.settings.textStyles.defaultText.fontSize}px;
-                  font-weight: ${styleToCss(data.settings.textStyles.defaultText.style).fontWeight};
-                  font-style: ${styleToCss(data.settings.textStyles.defaultText.style).fontStyle};
-                  text-decoration: ${styleToCss(data.settings.textStyles.defaultText.style).textDecoration};
-                  color: ${data.settings.textStyles.defaultText.color};
-                }
+            .single-editor h1 {
+              font-size: ${data.settings.textStyles.heading1.fontSize}px;
+              font-weight: ${styleToCss(data.settings.textStyles.heading1.style).fontWeight};
+              font-style: ${styleToCss(data.settings.textStyles.heading1.style).fontStyle};
+              text-decoration: ${styleToCss(data.settings.textStyles.heading1.style).textDecoration};
+              color: ${data.settings.textStyles.heading1.color};
+              text-align: ${data.settings.textStyles.heading1.align};
+            }
 
-                .single-editor h1 {
-                  font-size: ${data.settings.textStyles.heading1.fontSize}px;
-                  font-weight: ${styleToCss(data.settings.textStyles.heading1.style).fontWeight};
-                  font-style: ${styleToCss(data.settings.textStyles.heading1.style).fontStyle};
-                  text-decoration: ${styleToCss(data.settings.textStyles.heading1.style).textDecoration};
-                  color: ${data.settings.textStyles.heading1.color};
-                  text-align: ${data.settings.textStyles.heading1.align};
-                }
+            .single-editor h2 {
+              font-size: ${data.settings.textStyles.heading2.fontSize}px;
+              font-weight: ${styleToCss(data.settings.textStyles.heading2.style).fontWeight};
+              font-style: ${styleToCss(data.settings.textStyles.heading2.style).fontStyle};
+              text-decoration: ${styleToCss(data.settings.textStyles.heading2.style).textDecoration};
+              color: ${data.settings.textStyles.heading2.color};
+              text-align: ${data.settings.textStyles.heading2.align};
+            }
 
-                .single-editor h2 {
-                  font-size: ${data.settings.textStyles.heading2.fontSize}px;
-                  font-weight: ${styleToCss(data.settings.textStyles.heading2.style).fontWeight};
-                  font-style: ${styleToCss(data.settings.textStyles.heading2.style).fontStyle};
-                  text-decoration: ${styleToCss(data.settings.textStyles.heading2.style).textDecoration};
-                  color: ${data.settings.textStyles.heading2.color};
-                  text-align: ${data.settings.textStyles.heading2.align};
-                }
+            .single-editor h3 {
+              font-size: ${data.settings.textStyles.heading3.fontSize}px;
+              font-weight: ${styleToCss(data.settings.textStyles.heading3.style).fontWeight};
+              font-style: ${styleToCss(data.settings.textStyles.heading3.style).fontStyle};
+              text-decoration: ${styleToCss(data.settings.textStyles.heading3.style).textDecoration};
+              color: ${data.settings.textStyles.heading3.color};
+              text-align: ${data.settings.textStyles.heading3.align};
+            }
 
-                .single-editor h3 {
-                  font-size: ${data.settings.textStyles.heading3.fontSize}px;
-                  font-weight: ${styleToCss(data.settings.textStyles.heading3.style).fontWeight};
-                  font-style: ${styleToCss(data.settings.textStyles.heading3.style).fontStyle};
-                  text-decoration: ${styleToCss(data.settings.textStyles.heading3.style).textDecoration};
-                  color: ${data.settings.textStyles.heading3.color};
-                  text-align: ${data.settings.textStyles.heading3.align};
-                }
-
-                .single-editor .tag-text {
-                  font-size: ${data.settings.textStyles.tag.fontSize}px;
-                  font-weight: ${styleToCss(data.settings.textStyles.tag.style).fontWeight};
-                  font-style: ${styleToCss(data.settings.textStyles.tag.style).fontStyle};
-                  text-decoration: ${styleToCss(data.settings.textStyles.tag.style).textDecoration};
-                  color: ${data.settings.textStyles.tag.color};
-                }
-              `}
-            </style>
+            .single-editor .tag-text {
+              font-size: ${data.settings.textStyles.tag.fontSize}px;
+              font-weight: ${styleToCss(data.settings.textStyles.tag.style).fontWeight};
+              font-style: ${styleToCss(data.settings.textStyles.tag.style).fontStyle};
+              text-decoration: ${styleToCss(data.settings.textStyles.tag.style).textDecoration};
+              color: ${data.settings.textStyles.tag.color};
+            }
+          `}
+        </style>
+        {isSplitView ? (
+          <div ref={splitContainerRef} className="split-editor-layout">
+            <div className="split-pane" style={{ width: `${splitRatio}%` }}>
+              {debatePane}
+            </div>
             <div
-              ref={editorRef}
-              className={`editor single-editor ${invisibilityMode ? 'invisibility' : ''}`}
-              contentEditable
-              suppressContentEditableWarning
-              onInput={onEditorInput}
-              onKeyDown={onEditorKeyDown}
+              className={`split-resize-handle ${
+                isResizingSplit ? 'split-resize-handle-active' : ''
+              }`}
+              role="separator"
+              aria-label="Resize split view"
+              aria-orientation="vertical"
+              onMouseDown={startSplitResize}
             />
-          </article>
+            <div className="split-pane" style={{ width: `${100 - splitRatio}%` }}>
+              {speechPane}
+            </div>
+          </div>
+        ) : primaryView === 'speech' ? (
+          speechPane
         ) : (
-          <p>Select a document to begin editing.</p>
+          debatePane
         )}
       </section>
 
@@ -1540,9 +1777,11 @@ function App() {
               key={doc.id}
               type="button"
               className={`doc-button ${doc.id === data.activeSpeechId ? 'doc-button-active' : ''}`}
-              onClick={() =>
+              onClick={() => {
                 setData((previous) => ({ ...previous, activeSpeechId: doc.id }))
-              }
+                setIsSplitView(true)
+                setSplitRatio(50)
+              }}
             >
               <span>{doc.title}</span>
               <small>
