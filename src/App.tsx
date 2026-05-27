@@ -720,7 +720,7 @@ function App() {
       id: crypto.randomUUID(),
       title: 'Untitled Debate File',
       updatedAt: Date.now(),
-      content: '<h1>New File</h1><p>Start writing...</p>',
+      content: '<p>Start writing...</p>',
       folderId: null,
     }
 
