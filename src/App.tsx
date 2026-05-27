@@ -826,6 +826,52 @@ function App() {
     exportJson(doc.title, doc)
   }
 
+  const exportDocAsPdf = (docId: string) => {
+    const doc = data.debateDocs.find((item) => item.id === docId)
+    if (!doc) {
+      return
+    }
+
+    const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=900,height=700')
+    if (!printWindow) {
+      setStatus('Pop-up blocked. Allow pop-ups to export PDF.')
+      return
+    }
+
+    const escapedTitle = doc.title.replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    printWindow.document.open()
+    printWindow.document.write(`
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>${escapedTitle}</title>
+          <style>
+            body {
+              font-family: ${data.settings.defaultFont}, Arial, sans-serif;
+              margin: 32px;
+              line-height: 1.45;
+              color: #111827;
+            }
+            h1, h2, h3 {
+              margin-top: 1.2em;
+              margin-bottom: 0.45em;
+            }
+          </style>
+        </head>
+        <body>
+          <h1>${escapedTitle}</h1>
+          <hr />
+          ${doc.content}
+        </body>
+      </html>
+    `)
+    printWindow.document.close()
+    printWindow.focus()
+    printWindow.print()
+    setStatus(`Opened PDF export for "${doc.title}"`)
+  }
+
   const onDocContextMenu = (
     event: ReactMouseEvent<HTMLButtonElement>,
     docId: string,
@@ -1213,6 +1259,17 @@ function App() {
                   </button>
                 ))}
                 <div className="context-menu-divider" />
+                <div className="context-menu-section">Export File</div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    exportDocAsPdf(activeContextDocId)
+                    setActiveContextDocId(null)
+                    setContextMenuPosition(null)
+                  }}
+                >
+                  Export as PDF
+                </button>
                 <button
                   type="button"
                   onClick={() => {
@@ -1221,7 +1278,7 @@ function App() {
                     setContextMenuPosition(null)
                   }}
                 >
-                  Export file
+                  Export as JSON
                 </button>
               </div>
             ) : null}
