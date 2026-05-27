@@ -28,11 +28,103 @@ interface AppData {
   speechDocs: SpeechDocument[]
   activeDebateDocId: string
   activeSpeechId: string
+  settings: EditorSettings
 }
 
 type LeftPanelView = 'files' | 'settings'
+type FontStylePreset = 'normal' | 'bold' | 'italic' | 'boldItalic' | 'underline'
+
+interface TextStyleSetting {
+  fontSize: number
+  style: FontStylePreset
+}
+
+interface EditorSettings {
+  defaultFont: string
+  textStyles: {
+    defaultText: TextStyleSetting
+    tag: TextStyleSetting
+    heading1: TextStyleSetting
+    heading2: TextStyleSetting
+    heading3: TextStyleSetting
+  }
+}
 
 const STORAGE_KEY = 'debatefiles.v1'
+const defaultSettings: EditorSettings = {
+  defaultFont: 'Arial',
+  textStyles: {
+    defaultText: { fontSize: 15, style: 'normal' },
+    tag: { fontSize: 16, style: 'bold' },
+    heading1: { fontSize: 34, style: 'bold' },
+    heading2: { fontSize: 26, style: 'bold' },
+    heading3: { fontSize: 20, style: 'bold' },
+  },
+}
+
+const fontChoices = [
+  'Arial',
+  'Times New Roman',
+  'Calibri',
+  'Cambria',
+  'Georgia',
+  'Verdana',
+  'Trebuchet MS',
+]
+
+const styleChoices: Array<{ value: FontStylePreset; label: string }> = [
+  { value: 'normal', label: 'Normal' },
+  { value: 'bold', label: 'Bold' },
+  { value: 'italic', label: 'Italic' },
+  { value: 'boldItalic', label: 'Bold Italic' },
+  { value: 'underline', label: 'Underline' },
+]
+
+const styleToCss = (preset: FontStylePreset) => {
+  switch (preset) {
+    case 'bold':
+      return {
+        fontWeight: 700,
+        fontStyle: 'normal',
+        textDecoration: 'none',
+      }
+    case 'italic':
+      return {
+        fontWeight: 400,
+        fontStyle: 'italic',
+        textDecoration: 'none',
+      }
+    case 'boldItalic':
+      return {
+        fontWeight: 700,
+        fontStyle: 'italic',
+        textDecoration: 'none',
+      }
+    case 'underline':
+      return {
+        fontWeight: 400,
+        fontStyle: 'normal',
+        textDecoration: 'underline',
+      }
+    default:
+      return {
+        fontWeight: 400,
+        fontStyle: 'normal',
+        textDecoration: 'none',
+      }
+  }
+}
+
+const textStyleGroups: Array<{
+  key: keyof EditorSettings['textStyles']
+  label: string
+}> = [
+  { key: 'defaultText', label: 'Default Text' },
+  { key: 'tag', label: 'Tag Text' },
+  { key: 'heading1', label: 'Heading 1' },
+  { key: 'heading2', label: 'Heading 2' },
+  { key: 'heading3', label: 'Heading 3' },
+]
 
 const defaultData = (): AppData => {
   const debateDoc: DebateDocument = {
@@ -58,6 +150,7 @@ const defaultData = (): AppData => {
     speechDocs: [speechDoc],
     activeDebateDocId: debateDoc.id,
     activeSpeechId: speechDoc.id,
+    settings: defaultSettings,
   }
 }
 
@@ -98,7 +191,17 @@ function App() {
       ) {
         return defaultData()
       }
-      return parsed
+      return {
+        ...parsed,
+        settings: {
+          ...defaultSettings,
+          ...(parsed.settings ?? {}),
+          textStyles: {
+            ...defaultSettings.textStyles,
+            ...(parsed.settings?.textStyles ?? {}),
+          },
+        },
+      }
     } catch {
       return defaultData()
     }
@@ -253,6 +356,24 @@ function App() {
     })
   }
 
+  const updateSettings = (updater: (settings: EditorSettings) => void) => {
+    setData((previous) => {
+      const nextSettings = structuredClone(previous.settings) as EditorSettings
+      updater(nextSettings)
+      return { ...previous, settings: nextSettings }
+    })
+  }
+
+  const updateTextStyleSetting = (
+    key: keyof EditorSettings['textStyles'],
+    field: keyof TextStyleSetting,
+    value: string | number,
+  ) => {
+    updateSettings((settings) => {
+      settings.textStyles[key][field] = value as never
+    })
+  }
+
   const onEditorKeyDown: KeyboardEventHandler<HTMLDivElement> = (event) => {
     const mod = event.metaKey || event.ctrlKey
     const key = event.key.toLowerCase()
@@ -323,19 +444,68 @@ function App() {
         {leftPanelView === 'settings' ? (
           <div className="settings-panel">
             <h3>Settings</h3>
-            <label className="settings-row">
-              <input
-                type="checkbox"
-                checked={invisibilityMode}
-                onChange={(event) => setInvisibilityMode(event.target.checked)}
-              />
-              Start in invisibility mode
-            </label>
+            <div className="settings-group">
+              <label className="settings-row">
+                <span>Default text font</span>
+                <select
+                  value={data.settings.defaultFont}
+                  onChange={(event) =>
+                    updateSettings((settings) => {
+                      settings.defaultFont = event.target.value
+                    })
+                  }
+                >
+                  {fontChoices.map((font) => (
+                    <option key={font} value={font}>
+                      {font}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            {textStyleGroups.map((group) => (
+              <div key={group.key} className="settings-group">
+                <h4>{group.label}</h4>
+                <div className="settings-grid">
+                  <label className="settings-row">
+                    <span>Size</span>
+                    <input
+                      type="number"
+                      min={8}
+                      max={96}
+                      value={data.settings.textStyles[group.key].fontSize}
+                      onChange={(event) =>
+                        updateTextStyleSetting(
+                          group.key,
+                          'fontSize',
+                          Number(event.target.value),
+                        )
+                      }
+                    />
+                  </label>
+                  <label className="settings-row">
+                    <span>Style</span>
+                    <select
+                      value={data.settings.textStyles[group.key].style}
+                      onChange={(event) =>
+                        updateTextStyleSetting(group.key, 'style', event.target.value)
+                      }
+                    >
+                      {styleChoices.map((choice) => (
+                        <option key={choice.value} value={choice.value}>
+                          {choice.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              </div>
+            ))}
             <button type="button" onClick={() => setLeftPanelView('files')}>
               Back to Files
             </button>
             <p className="hint">
-              More options can be added here (shortcuts, defaults, and export behavior).
+              Tag style applies to text wrapped in a span with class <code>tag-text</code>.
             </p>
           </div>
         ) : (
@@ -414,6 +584,51 @@ function App() {
                 })
               }
             />
+            <style>
+              {`
+                .single-editor {
+                  font-family: ${data.settings.defaultFont};
+                }
+
+                .single-editor,
+                .single-editor p,
+                .single-editor div,
+                .single-editor li {
+                  font-size: ${data.settings.textStyles.defaultText.fontSize}px;
+                  font-weight: ${styleToCss(data.settings.textStyles.defaultText.style).fontWeight};
+                  font-style: ${styleToCss(data.settings.textStyles.defaultText.style).fontStyle};
+                  text-decoration: ${styleToCss(data.settings.textStyles.defaultText.style).textDecoration};
+                }
+
+                .single-editor h1 {
+                  font-size: ${data.settings.textStyles.heading1.fontSize}px;
+                  font-weight: ${styleToCss(data.settings.textStyles.heading1.style).fontWeight};
+                  font-style: ${styleToCss(data.settings.textStyles.heading1.style).fontStyle};
+                  text-decoration: ${styleToCss(data.settings.textStyles.heading1.style).textDecoration};
+                }
+
+                .single-editor h2 {
+                  font-size: ${data.settings.textStyles.heading2.fontSize}px;
+                  font-weight: ${styleToCss(data.settings.textStyles.heading2.style).fontWeight};
+                  font-style: ${styleToCss(data.settings.textStyles.heading2.style).fontStyle};
+                  text-decoration: ${styleToCss(data.settings.textStyles.heading2.style).textDecoration};
+                }
+
+                .single-editor h3 {
+                  font-size: ${data.settings.textStyles.heading3.fontSize}px;
+                  font-weight: ${styleToCss(data.settings.textStyles.heading3.style).fontWeight};
+                  font-style: ${styleToCss(data.settings.textStyles.heading3.style).fontStyle};
+                  text-decoration: ${styleToCss(data.settings.textStyles.heading3.style).textDecoration};
+                }
+
+                .single-editor .tag-text {
+                  font-size: ${data.settings.textStyles.tag.fontSize}px;
+                  font-weight: ${styleToCss(data.settings.textStyles.tag.style).fontWeight};
+                  font-style: ${styleToCss(data.settings.textStyles.tag.style).fontStyle};
+                  text-decoration: ${styleToCss(data.settings.textStyles.tag.style).textDecoration};
+                }
+              `}
+            </style>
             <div
               ref={editorRef}
               className={`editor single-editor ${invisibilityMode ? 'invisibility' : ''}`}
