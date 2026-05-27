@@ -155,6 +155,53 @@ button:disabled {
   padding: 10px;
 }
 
+.tabs-ribbon {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tab-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.tab-chip button {
+  border: none;
+  background: transparent;
+  padding: 6px 8px;
+}
+
+.tab-chip-active {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.tab-type {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--accent-bg);
+  margin-right: 4px;
+  font-size: 10px;
+}
+
+.tab-close-button {
+  font-size: 14px;
+  line-height: 1;
+  border-left: 1px solid var(--border) !important;
+}
+
 .editor-content {
   display: flex;
   flex-direction: column;
@@ -526,6 +573,21 @@ button:disabled {
 .split-resize-handle:hover,
 .split-resize-handle-active {
   background: var(--accent-border);
+}
+
+.empty-workspace {
+  min-height: 220px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+}
+
+.debatefiles-icon {
+  font-size: 30px;
 }
 
 @media (max-width: 1100px) {

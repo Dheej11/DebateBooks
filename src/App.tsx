@@ -25,6 +25,13 @@ interface DebateFolder {
   createdAt: number
 }
 
+type OpenTabType = 'debate' | 'speech'
+
+interface OpenTab {
+  id: string
+  type: OpenTabType
+}
+
 interface SpeechDocument {
   id: string
   title: string
@@ -39,6 +46,8 @@ interface AppData {
   speechDocs: SpeechDocument[]
   activeDebateDocId: string
   activeSpeechId: string
+  openTabs: OpenTab[]
+  activeTab: OpenTab | null
   settings: EditorSettings
 }
 
@@ -362,6 +371,8 @@ const defaultData = (): AppData => {
     speechDocs: [speechDoc],
     activeDebateDocId: debateDoc.id,
     activeSpeechId: speechDoc.id,
+    openTabs: [{ id: debateDoc.id, type: 'debate' }],
+    activeTab: { id: debateDoc.id, type: 'debate' },
     settings: defaultSettings,
   }
 }
@@ -410,6 +421,12 @@ function App() {
           ...doc,
           folderId: doc.folderId ?? null,
         })),
+        openTabs:
+          parsed.openTabs?.length > 0
+            ? parsed.openTabs
+            : [{ id: parsed.activeDebateDocId, type: 'debate' }],
+        activeTab:
+          parsed.activeTab ?? { id: parsed.activeDebateDocId, type: 'debate' },
         settings: {
           ...defaultSettings,
           ...(parsed.settings ?? {}),
@@ -669,6 +686,10 @@ function App() {
       ...previous,
       debateDocs: [doc, ...previous.debateDocs],
       activeDebateDocId: doc.id,
+      openTabs: previous.openTabs.some((tab) => tab.id === doc.id && tab.type === 'debate')
+        ? previous.openTabs
+        : [...previous.openTabs, { id: doc.id, type: 'debate' }],
+      activeTab: { id: doc.id, type: 'debate' },
     }))
   }
 
@@ -685,6 +706,10 @@ function App() {
       ...previous,
       speechDocs: [speech, ...previous.speechDocs],
       activeSpeechId: speech.id,
+      openTabs: previous.openTabs.some((tab) => tab.id === speech.id && tab.type === 'speech')
+        ? previous.openTabs
+        : [...previous.openTabs, { id: speech.id, type: 'speech' }],
+      activeTab: { id: speech.id, type: 'speech' },
     }))
   }
 
@@ -936,6 +961,75 @@ function App() {
     }))
   }
 
+  const openDebateTab = (docId: string) => {
+    setData((previous) => ({
+      ...previous,
+      activeDebateDocId: docId,
+      openTabs: previous.openTabs.some((tab) => tab.id === docId && tab.type === 'debate')
+        ? previous.openTabs
+        : [...previous.openTabs, { id: docId, type: 'debate' }],
+      activeTab: { id: docId, type: 'debate' },
+    }))
+    setPrimaryView('debate')
+  }
+
+  const openSpeechTab = (docId: string) => {
+    setData((previous) => ({
+      ...previous,
+      activeSpeechId: docId,
+      openTabs: previous.openTabs.some((tab) => tab.id === docId && tab.type === 'speech')
+        ? previous.openTabs
+        : [...previous.openTabs, { id: docId, type: 'speech' }],
+      activeTab: { id: docId, type: 'speech' },
+    }))
+    setPrimaryView('speech')
+  }
+
+  const closeTab = (tab: OpenTab) => {
+    setData((previous) => {
+      const nextOpenTabs = previous.openTabs.filter(
+        (item) => !(item.id === tab.id && item.type === tab.type),
+      )
+
+      let nextActiveTab = previous.activeTab
+      if (previous.activeTab?.id === tab.id && previous.activeTab?.type === tab.type) {
+        nextActiveTab = nextOpenTabs.at(-1) ?? null
+      }
+
+      let nextActiveDebateId = previous.activeDebateDocId
+      let nextActiveSpeechId = previous.activeSpeechId
+
+      if (nextActiveTab?.type === 'debate') {
+        nextActiveDebateId = nextActiveTab.id
+      } else if (nextActiveTab?.type === 'speech') {
+        nextActiveSpeechId = nextActiveTab.id
+      }
+
+      return {
+        ...previous,
+        openTabs: nextOpenTabs,
+        activeTab: nextActiveTab,
+        activeDebateDocId: nextActiveDebateId,
+        activeSpeechId: nextActiveSpeechId,
+      }
+    })
+  }
+
+  const activateTab = (tab: OpenTab) => {
+    if (tab.type === 'debate') {
+      openDebateTab(tab.id)
+    } else {
+      openSpeechTab(tab.id)
+    }
+  }
+
+  const getTabTitle = (tab: OpenTab) => {
+    if (tab.type === 'debate') {
+      return data.debateDocs.find((doc) => doc.id === tab.id)?.title ?? 'Debate file'
+    }
+    return data.speechDocs.find((doc) => doc.id === tab.id)?.title ?? 'Speech doc'
+  }
+
   const exportDocById = (docId: string) => {
     const doc = data.debateDocs.find((item) => item.id === docId)
     if (!doc) {
@@ -1114,6 +1208,9 @@ function App() {
           <button
             type="button"
             onClick={() => {
+              if (activeDebateDoc) {
+                openDebateTab(activeDebateDoc.id)
+              }
               setPrimaryView('debate')
               setIsSplitView(false)
             }}
@@ -1207,6 +1304,9 @@ function App() {
           <button
             type="button"
             onClick={() => {
+              if (activeSpeechDoc) {
+                openSpeechTab(activeSpeechDoc.id)
+              }
               setPrimaryView('speech')
               setIsSplitView(false)
             }}
@@ -1447,12 +1547,7 @@ function App() {
                   className={`doc-button ${
                     doc.id === data.activeDebateDocId ? 'doc-button-active' : ''
                   }`}
-                  onClick={() =>
-                    setData((previous) => ({
-                      ...previous,
-                      activeDebateDocId: doc.id,
-                    }))
-                  }
+                  onClick={() => openDebateTab(doc.id)}
                 >
                   <span>{doc.title}</span>
                   <small>Updated {formatDate(doc.updatedAt)}</small>
@@ -1505,12 +1600,7 @@ function App() {
                         className={`doc-button ${
                           doc.id === data.activeDebateDocId ? 'doc-button-active' : ''
                         }`}
-                        onClick={() =>
-                          setData((previous) => ({
-                            ...previous,
-                            activeDebateDocId: doc.id,
-                          }))
-                        }
+                        onClick={() => openDebateTab(doc.id)}
                       >
                         <span>{doc.title}</span>
                         <small>Updated {formatDate(doc.updatedAt)}</small>
@@ -1592,6 +1682,38 @@ function App() {
       </aside>
 
       <section className="editor-panel">
+        <div className="tabs-ribbon">
+          {data.openTabs.length ? (
+            data.openTabs.map((tab) => (
+              <div
+                key={`${tab.type}:${tab.id}`}
+                className={`tab-chip ${
+                  data.activeTab?.id === tab.id && data.activeTab?.type === tab.type
+                    ? 'tab-chip-active'
+                    : ''
+                }`}
+              >
+                <button type="button" onClick={() => activateTab(tab)}>
+                  <span className="tab-type">{tab.type === 'debate' ? 'D' : 'S'}</span>{' '}
+                  {getTabTitle(tab)}
+                </button>
+                <button
+                  type="button"
+                  className="tab-close-button"
+                  aria-label="Close tab"
+                  onClick={() => closeTab(tab)}
+                >
+                  ×
+                </button>
+              </div>
+            ))
+          ) : (
+            <div className="empty-workspace">
+              <div className="debatefiles-icon">📁</div>
+              <p>DebateFiles</p>
+            </div>
+          )}
+        </div>
         <header className="editor-toolbar">
           <div className="row">
             <label className="toolbar-color-control toolbar-color-control-primary">
@@ -1730,7 +1852,12 @@ function App() {
             }
           `}
         </style>
-        {isSplitView ? (
+        {data.activeTab === null ? (
+          <div className="empty-workspace">
+            <div className="debatefiles-icon">📁</div>
+            <p>DebateFiles</p>
+          </div>
+        ) : isSplitView ? (
           <div ref={splitContainerRef} className="split-editor-layout">
             <div className="split-pane" style={{ width: `${splitRatio}%` }}>
               {debatePane}
@@ -1748,7 +1875,7 @@ function App() {
               {speechPane}
             </div>
           </div>
-        ) : primaryView === 'speech' ? (
+        ) : data.activeTab?.type === 'speech' || primaryView === 'speech' ? (
           speechPane
         ) : (
           debatePane
@@ -1778,7 +1905,7 @@ function App() {
               type="button"
               className={`doc-button ${doc.id === data.activeSpeechId ? 'doc-button-active' : ''}`}
               onClick={() => {
-                setData((previous) => ({ ...previous, activeSpeechId: doc.id }))
+                openSpeechTab(doc.id)
                 setIsSplitView(true)
                 setSplitRatio(50)
               }}
