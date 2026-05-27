@@ -235,6 +235,36 @@ button:disabled {
   margin-bottom: 10px;
 }
 
+.shortcuts-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.shortcuts-table th,
+.shortcuts-table td {
+  border: 1px solid var(--border);
+  padding: 6px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.shortcuts-table th {
+  background: var(--accent-bg);
+  color: var(--text-h);
+}
+
+.shortcuts-table td input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 6px;
+  background: var(--bg);
+  color: var(--text-h);
+  font-size: 12px;
+  box-sizing: border-box;
+}
+
 .settings-row {
   display: flex;
   align-items: flex-start;
@@ -374,6 +404,35 @@ button:disabled {
   height: 1px;
   background: var(--border);
   margin: 4px 0;
+}
+
+.shortcuts-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+}
+
+.shortcuts-dialog {
+  width: min(720px, 92vw);
+  max-height: 82vh;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  padding: 12px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.25);
+}
+
+.shortcuts-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
 }
 
 .tree {

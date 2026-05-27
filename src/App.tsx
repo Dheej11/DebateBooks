@@ -435,6 +435,7 @@ function App() {
   const [activeTextColor, setActiveTextColor] = useState('#111827')
   const [activeTextSize, setActiveTextSize] = useState(15)
   const [activeHighlightColor, setActiveHighlightColor] = useState('#fff59d')
+  const [isShortcutsDialogOpen, setIsShortcutsDialogOpen] = useState(false)
   const [draggingDocId, setDraggingDocId] = useState<string | null>(null)
   const [dropTargetFolderId, setDropTargetFolderId] = useState<string | null>(null)
   const [collapsedFolderIds, setCollapsedFolderIds] = useState<string[]>([])
@@ -546,6 +547,17 @@ function App() {
 
     window.addEventListener('click', dismissContextMenu)
     return () => window.removeEventListener('click', dismissContextMenu)
+  }, [])
+
+  useEffect(() => {
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsShortcutsDialogOpen(false)
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
   }, [])
 
   const mutateActiveDebateDoc = (updater: (doc: DebateDocument) => void) => {
@@ -977,6 +989,33 @@ function App() {
     setIsResizingLeftPanel(true)
   }
 
+  const shortcutsTable = (
+    <table className="shortcuts-table">
+      <thead>
+        <tr>
+          <th>Action</th>
+          <th>Shortcut</th>
+        </tr>
+      </thead>
+      <tbody>
+        {shortcutGroups.map((shortcut) => (
+          <tr key={shortcut.key}>
+            <td>{shortcut.label}</td>
+            <td>
+              <input
+                type="text"
+                value={data.settings.shortcuts[shortcut.key]}
+                onChange={(event) =>
+                  updateShortcutSetting(shortcut.key, event.target.value)
+                }
+              />
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+
   return (
     <main
       className="app-layout"
@@ -1048,12 +1087,6 @@ function App() {
                   </select>
                 </div>
               </label>
-            </div>
-            <div className="settings-group">
-              <h4>Text + Style Defaults</h4>
-              <p className="hint">
-                Set default size/style for regular text, tags, and headings.
-              </p>
             </div>
             {textStyleGroups.map((group) => (
               <div key={group.key} className="settings-group">
@@ -1140,20 +1173,7 @@ function App() {
                 Use format like <code>Mod+Shift+H</code> or <code>Mod+Alt+1</code>.
                 Mod = Cmd on Mac, Ctrl on Windows.
               </p>
-              <div className="shortcuts-grid">
-                {shortcutGroups.map((shortcut) => (
-                  <label key={shortcut.key} className="settings-row">
-                    <span>{shortcut.label}</span>
-                    <input
-                      type="text"
-                      value={data.settings.shortcuts[shortcut.key]}
-                      onChange={(event) =>
-                        updateShortcutSetting(shortcut.key, event.target.value)
-                      }
-                    />
-                  </label>
-                ))}
-              </div>
+              {shortcutsTable}
             </div>
             <button type="button" onClick={() => setLeftPanelView('files')}>
               Back to Files
@@ -1405,6 +1425,9 @@ function App() {
             <button type="button" onClick={condenseSelection}>
               Condense
             </button>
+            <button type="button" onClick={() => setIsShortcutsDialogOpen(true)}>
+              Keyboard Shortcuts
+            </button>
             <button type="button" onClick={sendToSpeech}>
               Send to Speech
             </button>
@@ -1489,11 +1512,6 @@ function App() {
               onInput={onEditorInput}
               onKeyDown={onEditorKeyDown}
             />
-            <p className="hint">
-              Shortcuts: Cmd/Ctrl+B (bold), Cmd/Ctrl+U (underline), Cmd/Ctrl+Shift+H
-              (highlight), Cmd/Ctrl+Shift+V (paste as default text), Cmd/Ctrl+Shift+C
-              (condense), Cmd/Ctrl+Shift+S (send to speech).
-            </p>
           </article>
         ) : (
           <p>Select a document to begin editing.</p>
@@ -1556,6 +1574,25 @@ function App() {
         ) : null}
         <p className="status">{status}</p>
       </aside>
+      {isShortcutsDialogOpen ? (
+        <div
+          className="shortcuts-dialog-backdrop"
+          onClick={() => setIsShortcutsDialogOpen(false)}
+        >
+          <div className="shortcuts-dialog" onClick={(event) => event.stopPropagation()}>
+            <div className="shortcuts-dialog-header">
+              <h3>Keyboard Shortcuts</h3>
+              <button type="button" onClick={() => setIsShortcutsDialogOpen(false)}>
+                Close
+              </button>
+            </div>
+            <p className="hint">
+              Changes here are shared with Settings. Press <code>Esc</code> to close.
+            </p>
+            {shortcutsTable}
+          </div>
+        </div>
+      ) : null}
     </main>
   )
 }
