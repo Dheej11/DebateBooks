@@ -1,5 +1,6 @@
 import {
   type ChangeEventHandler,
+  type KeyboardEvent,
   type KeyboardEventHandler,
   useEffect,
   useMemo,
@@ -33,6 +34,19 @@ interface AppData {
 
 type LeftPanelView = 'files' | 'settings'
 type FontStylePreset = 'normal' | 'bold' | 'italic' | 'boldItalic' | 'underline'
+type ShortcutAction =
+  | 'bold'
+  | 'underline'
+  | 'highlight'
+  | 'boldUnderline'
+  | 'boldUnderlineHighlight'
+  | 'tagText'
+  | 'heading1'
+  | 'heading2'
+  | 'heading3'
+  | 'defaultText'
+  | 'condense'
+  | 'sendToSpeech'
 
 interface TextStyleSetting {
   fontSize: number
@@ -48,6 +62,7 @@ interface EditorSettings {
     heading2: TextStyleSetting
     heading3: TextStyleSetting
   }
+  shortcuts: Record<ShortcutAction, string>
 }
 
 const STORAGE_KEY = 'debatefiles.v1'
@@ -59,6 +74,20 @@ const defaultSettings: EditorSettings = {
     heading1: { fontSize: 34, style: 'bold' },
     heading2: { fontSize: 26, style: 'bold' },
     heading3: { fontSize: 20, style: 'bold' },
+  },
+  shortcuts: {
+    bold: 'Mod+B',
+    underline: 'Mod+U',
+    highlight: 'Mod+Shift+H',
+    boldUnderline: 'Mod+Shift+U',
+    boldUnderlineHighlight: 'Mod+Shift+J',
+    tagText: 'Mod+Shift+T',
+    heading1: 'Mod+Alt+1',
+    heading2: 'Mod+Alt+2',
+    heading3: 'Mod+Alt+3',
+    defaultText: 'Mod+Alt+0',
+    condense: 'Mod+Shift+C',
+    sendToSpeech: 'Mod+Shift+S',
   },
 }
 
@@ -125,6 +154,131 @@ const textStyleGroups: Array<{
   { key: 'heading2', label: 'Heading 2' },
   { key: 'heading3', label: 'Heading 3' },
 ]
+
+const shortcutGroups: Array<{
+  key: ShortcutAction
+  label: string
+}> = [
+  { key: 'bold', label: 'Bold' },
+  { key: 'underline', label: 'Underline' },
+  { key: 'highlight', label: 'Highlight' },
+  { key: 'boldUnderline', label: 'Bold + Underline' },
+  {
+    key: 'boldUnderlineHighlight',
+    label: 'Bold + Underline + Highlight',
+  },
+  { key: 'tagText', label: 'Set text to Tag' },
+  { key: 'heading1', label: 'Set text to Heading 1' },
+  { key: 'heading2', label: 'Set text to Heading 2' },
+  { key: 'heading3', label: 'Set text to Heading 3' },
+  { key: 'defaultText', label: 'Set text to Default Text' },
+  { key: 'condense', label: 'Condense' },
+  { key: 'sendToSpeech', label: 'Send to Speech' },
+]
+
+interface ParsedShortcut {
+  key: string
+  mod: boolean
+  ctrl: boolean
+  meta: boolean
+  alt: boolean
+  shift: boolean
+}
+
+const normalizeKey = (value: string) => {
+  const lowered = value.toLowerCase()
+  if (lowered === ' ') {
+    return 'space'
+  }
+  if (lowered === 'arrowup') {
+    return 'up'
+  }
+  if (lowered === 'arrowdown') {
+    return 'down'
+  }
+  if (lowered === 'arrowleft') {
+    return 'left'
+  }
+  if (lowered === 'arrowright') {
+    return 'right'
+  }
+  return lowered
+}
+
+const parseShortcut = (value: string): ParsedShortcut | null => {
+  const tokens = value
+    .split('+')
+    .map((token) => token.trim().toLowerCase())
+    .filter(Boolean)
+
+  if (!tokens.length) {
+    return null
+  }
+
+  const parsed: ParsedShortcut = {
+    key: '',
+    mod: false,
+    ctrl: false,
+    meta: false,
+    alt: false,
+    shift: false,
+  }
+
+  for (const token of tokens) {
+    if (token === 'mod') {
+      parsed.mod = true
+    } else if (token === 'ctrl' || token === 'control') {
+      parsed.ctrl = true
+    } else if (token === 'cmd' || token === 'meta') {
+      parsed.meta = true
+    } else if (token === 'alt' || token === 'option') {
+      parsed.alt = true
+    } else if (token === 'shift') {
+      parsed.shift = true
+    } else {
+      parsed.key = normalizeKey(token)
+    }
+  }
+
+  return parsed.key ? parsed : null
+}
+
+const matchesShortcut = (
+  event: KeyboardEvent<HTMLDivElement>,
+  shortcut: string,
+) => {
+  const parsed = parseShortcut(shortcut)
+  if (!parsed) {
+    return false
+  }
+
+  const eventKey = normalizeKey(event.key)
+  if (eventKey !== parsed.key) {
+    return false
+  }
+
+  if (parsed.mod && !(event.metaKey || event.ctrlKey)) {
+    return false
+  }
+
+  if (!parsed.mod && parsed.ctrl !== event.ctrlKey) {
+    return false
+  }
+
+  if (!parsed.mod && parsed.meta !== event.metaKey) {
+    return false
+  }
+
+  if (parsed.alt !== event.altKey) {
+    return false
+  }
+
+  if (parsed.shift !== event.shiftKey) {
+    return false
+  }
+
+  return true
+}
 
 const defaultData = (): AppData => {
   const debateDoc: DebateDocument = {
@@ -199,6 +353,10 @@ function App() {
           textStyles: {
             ...defaultSettings.textStyles,
             ...(parsed.settings?.textStyles ?? {}),
+          },
+          shortcuts: {
+            ...defaultSettings.shortcuts,
+            ...(parsed.settings?.shortcuts ?? {}),
           },
         },
       }
@@ -322,6 +480,86 @@ function App() {
     onEditorInput()
   }
 
+  const applyTagStyle = () => {
+    const selection = window.getSelection()
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+      return
+    }
+
+    const range = selection.getRangeAt(0)
+    const wrapper = document.createElement('span')
+    wrapper.className = 'tag-text'
+
+    try {
+      const content = range.extractContents()
+      wrapper.appendChild(content)
+      range.insertNode(wrapper)
+      selection.removeAllRanges()
+      const postRange = document.createRange()
+      postRange.selectNodeContents(wrapper)
+      selection.addRange(postRange)
+      onEditorInput()
+    } catch {
+      // Ignore invalid partial selections that cannot be wrapped.
+    }
+  }
+
+  const applyHeading = (level: 1 | 2 | 3) => {
+    document.execCommand('formatBlock', false, `h${level}`)
+    onEditorInput()
+  }
+
+  const applyDefaultTextBlock = () => {
+    document.execCommand('formatBlock', false, 'p')
+    onEditorInput()
+  }
+
+  const runShortcutAction = (action: ShortcutAction) => {
+    switch (action) {
+      case 'bold':
+        applyCommand('bold')
+        break
+      case 'underline':
+        applyCommand('underline')
+        break
+      case 'highlight':
+        applyCommand('hiliteColor', 'yellow')
+        break
+      case 'boldUnderline':
+        applyCommand('bold')
+        applyCommand('underline')
+        break
+      case 'boldUnderlineHighlight':
+        applyCommand('bold')
+        applyCommand('underline')
+        applyCommand('hiliteColor', 'yellow')
+        break
+      case 'tagText':
+        applyTagStyle()
+        break
+      case 'heading1':
+        applyHeading(1)
+        break
+      case 'heading2':
+        applyHeading(2)
+        break
+      case 'heading3':
+        applyHeading(3)
+        break
+      case 'defaultText':
+        applyDefaultTextBlock()
+        break
+      case 'condense':
+        condenseSelection()
+        break
+      case 'sendToSpeech':
+        sendToSpeech()
+        break
+      default:
+        break
+    }
+  }
+
   const sendToSpeech = () => {
     if (!activeSpeechDoc || !editorRef.current) {
       return
@@ -374,25 +612,20 @@ function App() {
     })
   }
 
-  const onEditorKeyDown: KeyboardEventHandler<HTMLDivElement> = (event) => {
-    const mod = event.metaKey || event.ctrlKey
-    const key = event.key.toLowerCase()
+  const updateShortcutSetting = (action: ShortcutAction, shortcut: string) => {
+    updateSettings((settings) => {
+      settings.shortcuts[action] = shortcut
+    })
+  }
 
-    if (mod && key === 'b') {
-      event.preventDefault()
-      applyCommand('bold')
-    } else if (mod && key === 'u') {
-      event.preventDefault()
-      applyCommand('underline')
-    } else if (mod && event.shiftKey && key === 'h') {
-      event.preventDefault()
-      applyCommand('hiliteColor', 'yellow')
-    } else if (mod && event.shiftKey && key === 's') {
-      event.preventDefault()
-      sendToSpeech()
-    } else if (mod && event.shiftKey && key === 'c') {
-      event.preventDefault()
-      condenseSelection()
+  const onEditorKeyDown: KeyboardEventHandler<HTMLDivElement> = (event) => {
+    for (const group of shortcutGroups) {
+      const shortcut = data.settings.shortcuts[group.key]
+      if (matchesShortcut(event, shortcut)) {
+        event.preventDefault()
+        runShortcutAction(group.key)
+        break
+      }
     }
   }
 
@@ -462,6 +695,27 @@ function App() {
                   ))}
                 </select>
               </label>
+            </div>
+            <div className="settings-group">
+              <h4>Keyboard Shortcuts</h4>
+              <p className="hint">
+                Use format like <code>Mod+Shift+H</code> or <code>Mod+Alt+1</code>.
+                Mod = Cmd on Mac, Ctrl on Windows.
+              </p>
+              <div className="shortcuts-grid">
+                {shortcutGroups.map((shortcut) => (
+                  <label key={shortcut.key} className="settings-row">
+                    <span>{shortcut.label}</span>
+                    <input
+                      type="text"
+                      value={data.settings.shortcuts[shortcut.key]}
+                      onChange={(event) =>
+                        updateShortcutSetting(shortcut.key, event.target.value)
+                      }
+                    />
+                  </label>
+                ))}
+              </div>
             </div>
             {textStyleGroups.map((group) => (
               <div key={group.key} className="settings-group">

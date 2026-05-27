@@ -183,6 +183,13 @@ button:disabled {
   gap: 8px;
 }
 
+.shortcuts-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
 .settings-row {
   display: flex;
   align-items: flex-start;
