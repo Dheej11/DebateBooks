@@ -1187,6 +1187,9 @@ function App() {
     return data.speechDocs.find((doc) => doc.id === tab.id)?.title ?? 'Speech doc'
   }
 
+  const isDebateDocOpen = (docId: string) =>
+    data.openTabs.some((tab) => tab.type === 'debate' && tab.id === docId)
+
   const isSpeechDocOpen = (docId: string) =>
     data.openTabs.some((tab) => tab.type === 'speech' && tab.id === docId)
 
@@ -1499,7 +1502,11 @@ function App() {
                     onDragEnd={clearDragState}
                     onContextMenu={(event) => onDocContextMenu(event, doc.id)}
                     className={`doc-button ${
-                      doc.id === data.activeDebateDocId ? 'doc-button-active' : ''
+                      data.activeTab?.type === 'debate' && data.activeTab.id === doc.id
+                        ? 'doc-button-active'
+                        : isDebateDocOpen(doc.id)
+                          ? 'doc-button-open'
+                          : ''
                     }`}
                     onClick={() => openDebateTab(doc.id)}
                   >
@@ -1877,7 +1884,11 @@ function App() {
                   onDragEnd={clearDragState}
                   onContextMenu={(event) => onDocContextMenu(event, doc.id)}
                   className={`doc-button ${
-                    doc.id === data.activeDebateDocId ? 'doc-button-active' : ''
+                    data.activeTab?.type === 'debate' && data.activeTab.id === doc.id
+                      ? 'doc-button-active'
+                      : isDebateDocOpen(doc.id)
+                        ? 'doc-button-open'
+                        : ''
                   }`}
                   onClick={() => openDebateTab(doc.id)}
                 >
@@ -2209,8 +2220,14 @@ function App() {
               }`}
               onClick={() => {
                 openSpeechTab(doc.id)
-                setIsSplitView(true)
-                setSplitRatio(50)
+                const hasOpenDebateTab = data.openTabs.some((tab) => tab.type === 'debate')
+                if (hasOpenDebateTab) {
+                  setIsSplitView(true)
+                  setSplitRatio(50)
+                } else {
+                  setIsSplitView(false)
+                  setPrimaryView('speech')
+                }
               }}
               onDoubleClick={() => closeTab({ id: doc.id, type: 'speech' })}
             >
