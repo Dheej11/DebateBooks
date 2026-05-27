@@ -1,6 +1,6 @@
 .app-layout {
   display: grid;
-  grid-template-columns: 290px 1fr 290px;
+  grid-template-columns: var(--left-panel-width, 290px) 1fr 290px;
   min-height: 100svh;
   text-align: left;
 }
@@ -10,10 +10,31 @@
   border-right: 1px solid var(--border);
   padding: 14px;
   box-sizing: border-box;
+  height: 100svh;
+  overflow: auto;
 }
 
 .panel:last-child {
   border-right: none;
+}
+
+.left-panel {
+  position: relative;
+}
+
+.left-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 20;
+}
+
+.left-resize-handle:hover,
+.left-resize-handle-active {
+  background: var(--accent-border);
 }
 
 .panel h2,
@@ -160,8 +181,8 @@ button:disabled {
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 10px;
-  max-height: 68svh;
-  overflow: auto;
+  min-height: calc(100svh - 88px);
+  box-sizing: border-box;
 }
 
 .settings-group {
@@ -276,5 +297,9 @@ button:disabled {
   .editor-panel {
     border-right: none;
     border-bottom: 1px solid var(--border);
+  }
+
+  .left-resize-handle {
+    display: none;
   }
 }

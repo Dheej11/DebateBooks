@@ -1,7 +1,9 @@
 import {
   type ChangeEventHandler,
+  type CSSProperties,
   type KeyboardEvent,
   type KeyboardEventHandler,
+  type MouseEvent as ReactMouseEvent,
   useEffect,
   useMemo,
   useRef,
@@ -368,7 +370,12 @@ function App() {
   const [invisibilityMode, setInvisibilityMode] = useState(false)
   const [status, setStatus] = useState('Ready')
   const [leftPanelView, setLeftPanelView] = useState<LeftPanelView>('files')
+  const [leftPanelWidth, setLeftPanelWidth] = useState(290)
+  const [isResizingLeftPanel, setIsResizingLeftPanel] = useState(false)
   const editorRef = useRef<HTMLDivElement | null>(null)
+  const leftResizeStateRef = useRef<{ startX: number; startWidth: number } | null>(
+    null,
+  )
 
   const activeDebateDoc = useMemo(
     () => data.debateDocs.find((doc) => doc.id === data.activeDebateDocId) ?? null,
@@ -394,6 +401,43 @@ function App() {
       editorRef.current.innerHTML = activeDebateDoc.content
     }
   }, [activeDebateDoc?.id, activeDebateDoc?.content])
+
+  useEffect(() => {
+    if (!isResizingLeftPanel) {
+      return
+    }
+
+    const onMouseMove = (event: MouseEvent) => {
+      const resizeState = leftResizeStateRef.current
+      if (!resizeState) {
+        return
+      }
+
+      const nextWidth = resizeState.startWidth + (event.clientX - resizeState.startX)
+      const clampedWidth = Math.max(220, Math.min(520, nextWidth))
+      setLeftPanelWidth(clampedWidth)
+    }
+
+    const onMouseUp = () => {
+      setIsResizingLeftPanel(false)
+      leftResizeStateRef.current = null
+    }
+
+    const originalCursor = document.body.style.cursor
+    const originalUserSelect = document.body.style.userSelect
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
+
+    return () => {
+      document.body.style.cursor = originalCursor
+      document.body.style.userSelect = originalUserSelect
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
+    }
+  }, [isResizingLeftPanel])
 
   const mutateActiveDebateDoc = (updater: (doc: DebateDocument) => void) => {
     setData((previous) => {
@@ -655,9 +699,21 @@ function App() {
     }
   }
 
+  const startLeftPanelResize = (event: ReactMouseEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    leftResizeStateRef.current = {
+      startX: event.clientX,
+      startWidth: leftPanelWidth,
+    }
+    setIsResizingLeftPanel(true)
+  }
+
   return (
-    <main className="app-layout">
-      <aside className="panel">
+    <main
+      className="app-layout"
+      style={{ '--left-panel-width': `${leftPanelWidth}px` } as CSSProperties}
+    >
+      <aside className="panel left-panel">
         <div className="panel-header">
           <h2>Debate Files</h2>
           <button
@@ -697,25 +753,10 @@ function App() {
               </label>
             </div>
             <div className="settings-group">
-              <h4>Keyboard Shortcuts</h4>
+              <h4>Text + Style Defaults</h4>
               <p className="hint">
-                Use format like <code>Mod+Shift+H</code> or <code>Mod+Alt+1</code>.
-                Mod = Cmd on Mac, Ctrl on Windows.
+                Set default size/style for regular text, tags, and headings.
               </p>
-              <div className="shortcuts-grid">
-                {shortcutGroups.map((shortcut) => (
-                  <label key={shortcut.key} className="settings-row">
-                    <span>{shortcut.label}</span>
-                    <input
-                      type="text"
-                      value={data.settings.shortcuts[shortcut.key]}
-                      onChange={(event) =>
-                        updateShortcutSetting(shortcut.key, event.target.value)
-                      }
-                    />
-                  </label>
-                ))}
-              </div>
             </div>
             {textStyleGroups.map((group) => (
               <div key={group.key} className="settings-group">
@@ -755,6 +796,27 @@ function App() {
                 </div>
               </div>
             ))}
+            <div className="settings-group">
+              <h4>Keyboard Shortcuts</h4>
+              <p className="hint">
+                Use format like <code>Mod+Shift+H</code> or <code>Mod+Alt+1</code>.
+                Mod = Cmd on Mac, Ctrl on Windows.
+              </p>
+              <div className="shortcuts-grid">
+                {shortcutGroups.map((shortcut) => (
+                  <label key={shortcut.key} className="settings-row">
+                    <span>{shortcut.label}</span>
+                    <input
+                      type="text"
+                      value={data.settings.shortcuts[shortcut.key]}
+                      onChange={(event) =>
+                        updateShortcutSetting(shortcut.key, event.target.value)
+                      }
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
             <button type="button" onClick={() => setLeftPanelView('files')}>
               Back to Files
             </button>
@@ -798,6 +860,15 @@ function App() {
         </p>
           </>
         )}
+        <div
+          className={`left-resize-handle ${
+            isResizingLeftPanel ? 'left-resize-handle-active' : ''
+          }`}
+          role="separator"
+          aria-label="Resize left menu"
+          aria-orientation="vertical"
+          onMouseDown={startLeftPanelResize}
+        />
       </aside>
 
       <section className="editor-panel">
