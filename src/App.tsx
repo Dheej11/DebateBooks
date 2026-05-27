@@ -3,6 +3,7 @@ import {
   type CSSProperties,
   type KeyboardEvent,
   type KeyboardEventHandler,
+  type ReactElement,
   type MouseEvent as ReactMouseEvent,
   useEffect,
   useMemo,
@@ -23,6 +24,8 @@ interface DebateFolder {
   id: string
   name: string
   createdAt: number
+  parentFolderId: string | null
+  order: number
 }
 
 type OpenTabType = 'debate' | 'speech'
@@ -416,7 +419,11 @@ function App() {
       }
       return {
         ...parsed,
-        folders: parsed.folders ?? [],
+        folders: (parsed.folders ?? []).map((folder, index) => ({
+          ...folder,
+          parentFolderId: folder.parentFolderId ?? null,
+          order: folder.order ?? index,
+        })),
         debateDocs: parsed.debateDocs.map((doc) => ({
           ...doc,
           folderId: doc.folderId ?? null,
@@ -460,6 +467,11 @@ function App() {
   const [isShortcutsDialogOpen, setIsShortcutsDialogOpen] = useState(false)
   const [draggingDocId, setDraggingDocId] = useState<string | null>(null)
   const [dropTargetFolderId, setDropTargetFolderId] = useState<string | null>(null)
+  const [draggingFolderId, setDraggingFolderId] = useState<string | null>(null)
+  const [folderDropTarget, setFolderDropTarget] = useState<{
+    mode: 'inside' | 'before' | 'after'
+    folderId: string
+  } | null>(null)
   const [collapsedFolderIds, setCollapsedFolderIds] = useState<string[]>([])
   const [activeContextDocId, setActiveContextDocId] = useState<string | null>(null)
   const [contextMenuPosition, setContextMenuPosition] = useState<{
@@ -506,6 +518,11 @@ function App() {
     }
     return map
   }, [data.debateDocs, data.folders])
+
+  const sortedFolders = useMemo(
+    () => [...data.folders].sort((a, b) => a.order - b.order),
+    [data.folders],
+  )
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
@@ -723,6 +740,8 @@ function App() {
       id: crypto.randomUUID(),
       name: folderName.trim(),
       createdAt: Date.now(),
+      parentFolderId: null,
+      order: data.folders.length,
     }
 
     setData((previous) => ({
@@ -961,6 +980,112 @@ function App() {
     }))
   }
 
+  const isFolderDescendant = (
+    folders: DebateFolder[],
+    folderId: string,
+    potentialAncestorId: string,
+  ) => {
+    let current = folders.find((folder) => folder.id === folderId) ?? null
+    while (current?.parentFolderId) {
+      if (current.parentFolderId === potentialAncestorId) {
+        return true
+      }
+      current = folders.find((folder) => folder.id === current?.parentFolderId) ?? null
+    }
+    return false
+  }
+
+  const moveFolderInside = (folderId: string, targetFolderId: string | null) => {
+    setData((previous) => {
+      if (folderId === targetFolderId) {
+        return previous
+      }
+      if (
+        targetFolderId &&
+        isFolderDescendant(previous.folders, targetFolderId, folderId)
+      ) {
+        return previous
+      }
+
+      const siblingCount = previous.folders.filter(
+        (folder) => folder.parentFolderId === targetFolderId && folder.id !== folderId,
+      ).length
+
+      return {
+        ...previous,
+        folders: previous.folders.map((folder) =>
+          folder.id === folderId
+            ? {
+                ...folder,
+                parentFolderId: targetFolderId,
+                order: siblingCount,
+              }
+            : folder,
+        ),
+      }
+    })
+  }
+
+  const moveFolderRelative = (
+    folderId: string,
+    targetFolderId: string,
+    position: 'before' | 'after',
+  ) => {
+    setData((previous) => {
+      if (folderId === targetFolderId) {
+        return previous
+      }
+
+      const target = previous.folders.find((folder) => folder.id === targetFolderId)
+      if (!target) {
+        return previous
+      }
+
+      if (isFolderDescendant(previous.folders, targetFolderId, folderId)) {
+        return previous
+      }
+
+      const newParentId = target.parentFolderId
+      const siblings = previous.folders
+        .filter((folder) => folder.parentFolderId === newParentId && folder.id !== folderId)
+        .sort((a, b) => a.order - b.order)
+
+      const targetIndex = siblings.findIndex((folder) => folder.id === targetFolderId)
+      if (targetIndex === -1) {
+        return previous
+      }
+
+      const insertIndex = position === 'before' ? targetIndex : targetIndex + 1
+      const movingFolder = previous.folders.find((folder) => folder.id === folderId)
+      if (!movingFolder) {
+        return previous
+      }
+
+      const reordered = [...siblings]
+      reordered.splice(insertIndex, 0, {
+        ...movingFolder,
+        parentFolderId: newParentId,
+      })
+
+      const nextFolderMap = new Map<string, DebateFolder>()
+      for (const folder of previous.folders) {
+        nextFolderMap.set(folder.id, folder)
+      }
+      reordered.forEach((folder, index) => {
+        nextFolderMap.set(folder.id, {
+          ...folder,
+          parentFolderId: newParentId,
+          order: index,
+        })
+      })
+
+      return {
+        ...previous,
+        folders: Array.from(nextFolderMap.values()),
+      }
+    })
+  }
+
   const openDebateTab = (docId: string) => {
     setData((previous) => ({
       ...previous,
@@ -1102,6 +1227,25 @@ function App() {
     setDropTargetFolderId(null)
   }
 
+  const onFolderStructureDrop = () => {
+    if (!draggingFolderId || !folderDropTarget) {
+      return
+    }
+
+    if (folderDropTarget.mode === 'inside') {
+      moveFolderInside(draggingFolderId, folderDropTarget.folderId)
+    } else {
+      moveFolderRelative(
+        draggingFolderId,
+        folderDropTarget.folderId,
+        folderDropTarget.mode,
+      )
+    }
+
+    setDraggingFolderId(null)
+    setFolderDropTarget(null)
+  }
+
   const toggleFolderCollapsed = (folderId: string) => {
     setCollapsedFolderIds((previous) =>
       previous.includes(folderId)
@@ -1199,6 +1343,126 @@ function App() {
       </tbody>
     </table>
   )
+
+  const renderFolderTree = (parentFolderId: string | null, depth = 0): ReactElement[] => {
+    const folders = sortedFolders.filter((folder) => folder.parentFolderId === parentFolderId)
+
+    return folders.map((folder) => {
+      const folderDocs = docsByFolder.get(folder.id) ?? []
+      const isCollapsed = collapsedFolderIds.includes(folder.id)
+      const insideActive =
+        folderDropTarget?.folderId === folder.id && folderDropTarget.mode === 'inside'
+      const beforeActive =
+        folderDropTarget?.folderId === folder.id && folderDropTarget.mode === 'before'
+      const afterActive =
+        folderDropTarget?.folderId === folder.id && folderDropTarget.mode === 'after'
+
+      return (
+        <div key={folder.id} className="folder-tree-node" style={{ marginLeft: depth * 14 }}>
+          <div
+            className={`folder-drop-line ${beforeActive ? 'folder-drop-line-active' : ''}`}
+            onDragOver={(event) => {
+              if (!draggingFolderId) {
+                return
+              }
+              event.preventDefault()
+              setFolderDropTarget({ mode: 'before', folderId: folder.id })
+            }}
+            onDrop={(event) => {
+              event.preventDefault()
+              onFolderStructureDrop()
+            }}
+          />
+          <div
+            className={`stack folder-drop-zone ${insideActive ? 'folder-drop-zone-active' : ''}`}
+            onDragOver={(event) => {
+              event.preventDefault()
+              if (draggingFolderId) {
+                setFolderDropTarget({ mode: 'inside', folderId: folder.id })
+              } else {
+                setDropTargetFolderId(folder.id)
+              }
+            }}
+            onDragLeave={() => {
+              if (draggingFolderId) {
+                setFolderDropTarget(null)
+              } else {
+                setDropTargetFolderId(null)
+              }
+            }}
+            onDrop={(event) => {
+              event.preventDefault()
+              if (draggingFolderId) {
+                onFolderStructureDrop()
+              } else {
+                onFolderDrop(folder.id)
+              }
+            }}
+          >
+            <div
+              className="folder-header"
+              draggable
+              onDragStart={() => {
+                setDraggingFolderId(folder.id)
+                setFolderDropTarget(null)
+              }}
+              onDragEnd={() => {
+                setDraggingFolderId(null)
+                setFolderDropTarget(null)
+              }}
+            >
+              <strong>{folder.name}</strong>
+              <button
+                type="button"
+                className="folder-toggle-button"
+                aria-label={isCollapsed ? 'Expand folder' : 'Minimize folder'}
+                onClick={() => toggleFolderCollapsed(folder.id)}
+              >
+                {isCollapsed ? '▶' : '▼'}
+              </button>
+            </div>
+            {!isCollapsed
+              ? folderDocs.map((doc) => (
+                  <button
+                    key={doc.id}
+                    type="button"
+                    draggable
+                    onDragStart={() => setDraggingDocId(doc.id)}
+                    onDragEnd={() => {
+                      setDraggingDocId(null)
+                      setDropTargetFolderId(null)
+                    }}
+                    onContextMenu={(event) => onDocContextMenu(event, doc.id)}
+                    className={`doc-button ${
+                      doc.id === data.activeDebateDocId ? 'doc-button-active' : ''
+                    }`}
+                    onClick={() => openDebateTab(doc.id)}
+                  >
+                    <span>{doc.title}</span>
+                    <small>Updated {formatDate(doc.updatedAt)}</small>
+                  </button>
+                ))
+              : null}
+          </div>
+          {!isCollapsed ? renderFolderTree(folder.id, depth + 1) : null}
+          <div
+            className={`folder-drop-line ${afterActive ? 'folder-drop-line-active' : ''}`}
+            onDragOver={(event) => {
+              if (!draggingFolderId) {
+                return
+              }
+              event.preventDefault()
+              setFolderDropTarget({ mode: 'after', folderId: folder.id })
+            }}
+            onDrop={(event) => {
+              event.preventDefault()
+              onFolderStructureDrop()
+            }}
+          />
+        </div>
+      )
+    })
+  }
 
   const debatePane = activeDebateDoc ? (
     <article className="editor-content">
@@ -1554,63 +1818,33 @@ function App() {
                 </button>
               ))}
             </div>
-            {data.folders.map((folder) => (
-              <div
-                key={folder.id}
-                className={`stack folder-drop-zone ${
-                  dropTargetFolderId === folder.id ? 'folder-drop-zone-active' : ''
-                }`}
-                onDragOver={(event) => {
-                  event.preventDefault()
-                  setDropTargetFolderId(folder.id)
-                }}
-                onDragLeave={() => setDropTargetFolderId(null)}
-                onDrop={(event) => {
-                  event.preventDefault()
-                  onFolderDrop(folder.id)
-                }}
-              >
-                <div className="folder-header">
-                  <strong>{folder.name}</strong>
-                  <button
-                    type="button"
-                    className="folder-toggle-button"
-                    aria-label={
-                      collapsedFolderIds.includes(folder.id)
-                        ? 'Expand folder'
-                        : 'Minimize folder'
-                    }
-                    onClick={() => toggleFolderCollapsed(folder.id)}
-                  >
-                    {collapsedFolderIds.includes(folder.id) ? '▶' : '▼'}
-                  </button>
-                </div>
-                {!collapsedFolderIds.includes(folder.id)
-                  ? (docsByFolder.get(folder.id) ?? []).map((doc) => (
-                      <button
-                        key={doc.id}
-                        type="button"
-                        draggable
-                        onDragStart={() => setDraggingDocId(doc.id)}
-                        onDragEnd={() => {
-                          setDraggingDocId(null)
-                          setDropTargetFolderId(null)
-                        }}
-                        onContextMenu={(event) => onDocContextMenu(event, doc.id)}
-                        className={`doc-button ${
-                          doc.id === data.activeDebateDocId ? 'doc-button-active' : ''
-                        }`}
-                        onClick={() => openDebateTab(doc.id)}
-                      >
-                        <span>{doc.title}</span>
-                        <small>Updated {formatDate(doc.updatedAt)}</small>
-                      </button>
-                    ))
-                  : null}
-              </div>
-            ))}
+            <div
+              className={`folder-root-drop-zone ${
+                folderDropTarget?.mode === 'inside' && folderDropTarget.folderId === '__root__'
+                  ? 'folder-root-drop-zone-active'
+                  : ''
+              }`}
+              onDragOver={(event) => {
+                if (!draggingFolderId) {
+                  return
+                }
+                event.preventDefault()
+                setFolderDropTarget({ mode: 'inside', folderId: '__root__' })
+              }}
+              onDrop={(event) => {
+                event.preventDefault()
+                if (draggingFolderId) {
+                  moveFolderInside(draggingFolderId, null)
+                  setDraggingFolderId(null)
+                  setFolderDropTarget(null)
+                }
+              }}
+            >
+              Drop folder here to move to root level
+            </div>
+            {renderFolderTree(null)}
             <p className="hint">
-              Drag files into folders, or right-click a file for more options.
+              Drag files into folders. Drag folders to nest or reorder.
             </p>
             {activeContextDocId && contextMenuPosition ? (
               <div
@@ -1682,9 +1916,9 @@ function App() {
       </aside>
 
       <section className="editor-panel">
-        <div className="tabs-ribbon">
-          {data.openTabs.length ? (
-            data.openTabs.map((tab) => (
+        {data.openTabs.length ? (
+          <div className="tabs-ribbon">
+            {data.openTabs.map((tab) => (
               <div
                 key={`${tab.type}:${tab.id}`}
                 className={`tab-chip ${
@@ -1706,14 +1940,9 @@ function App() {
                   ×
                 </button>
               </div>
-            ))
-          ) : (
-            <div className="empty-workspace">
-              <div className="debatefiles-icon">📁</div>
-              <p>DebateFiles</p>
-            </div>
-          )}
-        </div>
+            ))}
+          </div>
+        ) : null}
         <header className="editor-toolbar">
           <div className="row">
             <label className="toolbar-color-control toolbar-color-control-primary">

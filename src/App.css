@@ -115,11 +115,40 @@ button:disabled {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  cursor: grab;
 }
 
 .folder-toggle-button {
   font-size: 11px;
   padding: 4px 8px;
+}
+
+.folder-tree-node {
+  position: relative;
+}
+
+.folder-drop-line {
+  height: 6px;
+  border-radius: 4px;
+  margin: 2px 0;
+}
+
+.folder-drop-line-active {
+  background: var(--accent-border);
+}
+
+.folder-root-drop-zone {
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 12px;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.folder-root-drop-zone-active {
+  border-color: var(--accent);
+  background: var(--accent-bg);
 }
 
 .doc-button,
