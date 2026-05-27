@@ -666,6 +666,21 @@ function App() {
     }
   }, [])
 
+  useEffect(() => {
+    if (data.activeTab?.type === 'speech') {
+      setPrimaryView('speech')
+    } else {
+      setPrimaryView('debate')
+    }
+  }, [data.activeTab])
+
+  useEffect(() => {
+    const hasOpenSpeechTab = data.openTabs.some((tab) => tab.type === 'speech')
+    if (!hasOpenSpeechTab && isSplitView) {
+      setIsSplitView(false)
+    }
+  }, [data.openTabs, isSplitView])
+
   const mutateActiveDebateDoc = (updater: (doc: DebateDocument) => void) => {
     setData((previous) => {
       const nextDocs = previous.debateDocs.map((doc) => {
@@ -1128,7 +1143,14 @@ function App() {
 
       let nextActiveTab = previous.activeTab
       if (previous.activeTab?.id === tab.id && previous.activeTab?.type === tab.type) {
-        nextActiveTab = nextOpenTabs.at(-1) ?? null
+        if (tab.type === 'speech') {
+          const fallbackDebateTab = [...nextOpenTabs]
+            .reverse()
+            .find((item) => item.type === 'debate')
+          nextActiveTab = fallbackDebateTab ?? null
+        } else {
+          nextActiveTab = nextOpenTabs.at(-1) ?? null
+        }
       }
 
       let nextActiveDebateId = previous.activeDebateDocId
@@ -1164,6 +1186,9 @@ function App() {
     }
     return data.speechDocs.find((doc) => doc.id === tab.id)?.title ?? 'Speech doc'
   }
+
+  const isSpeechDocOpen = (docId: string) =>
+    data.openTabs.some((tab) => tab.type === 'speech' && tab.id === docId)
 
   const exportDocById = (docId: string) => {
     const doc = data.debateDocs.find((item) => item.id === docId)
@@ -1420,13 +1445,39 @@ function App() {
             }}
           >
             <div
-              className="folder-header"
+              className={`folder-header ${
+                beforeActive
+                  ? 'folder-header-drop-before'
+                  : afterActive
+                    ? 'folder-header-drop-after'
+                    : ''
+              }`}
               draggable
               onDragStart={() => {
                 setDraggingFolderId(folder.id)
                 setFolderDropTarget(null)
               }}
               onDragEnd={clearDragState}
+              onDragOver={(event) => {
+                if (!draggingFolderId || draggingFolderId === folder.id) {
+                  return
+                }
+                event.preventDefault()
+                event.stopPropagation()
+
+                const rect = (event.currentTarget as HTMLDivElement).getBoundingClientRect()
+                const midpoint = rect.top + rect.height / 2
+                const mode = event.clientY < midpoint ? 'before' : 'after'
+                setFolderDropTarget({ mode, folderId: folder.id })
+              }}
+              onDrop={(event) => {
+                if (!draggingFolderId || draggingFolderId === folder.id) {
+                  return
+                }
+                event.preventDefault()
+                event.stopPropagation()
+                onFolderStructureDrop()
+              }}
             >
               <strong>{folder.name}</strong>
               <button
@@ -2149,12 +2200,19 @@ function App() {
             <button
               key={doc.id}
               type="button"
-              className={`doc-button ${doc.id === data.activeSpeechId ? 'doc-button-active' : ''}`}
+              className={`doc-button ${
+                data.activeTab?.type === 'speech' && data.activeTab.id === doc.id
+                  ? 'doc-button-active'
+                  : isSpeechDocOpen(doc.id)
+                    ? 'doc-button-open'
+                    : ''
+              }`}
               onClick={() => {
                 openSpeechTab(doc.id)
                 setIsSplitView(true)
                 setSplitRatio(50)
               }}
+              onDoubleClick={() => closeTab({ id: doc.id, type: 'speech' })}
             >
               <span>{doc.title}</span>
               <small>
@@ -2163,27 +2221,6 @@ function App() {
             </button>
           ))}
         </div>
-        {activeSpeechDoc ? (
-          <div className="speech-preview">
-            <input
-              className="node-title"
-              value={activeSpeechDoc.title}
-              onChange={(event) =>
-                mutateSpeechDoc(activeSpeechDoc.id, (doc) => {
-                  doc.title = event.target.value
-                })
-              }
-            />
-            <textarea
-              value={activeSpeechDoc.content}
-              onChange={(event) =>
-                mutateSpeechDoc(activeSpeechDoc.id, (doc) => {
-                  doc.content = event.target.value
-                })
-              }
-            />
-          </div>
-        ) : null}
         <p className="status">{status}</p>
       </aside>
       {isShortcutsDialogOpen ? (
