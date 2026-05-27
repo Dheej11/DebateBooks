@@ -433,6 +433,7 @@ function App() {
   const [leftPanelWidth, setLeftPanelWidth] = useState(290)
   const [isResizingLeftPanel, setIsResizingLeftPanel] = useState(false)
   const [activeTextColor, setActiveTextColor] = useState('#111827')
+  const [activeTextSize, setActiveTextSize] = useState(15)
   const [activeHighlightColor, setActiveHighlightColor] = useState('#fff59d')
   const [draggingDocId, setDraggingDocId] = useState<string | null>(null)
   const [dropTargetFolderId, setDropTargetFolderId] = useState<string | null>(null)
@@ -492,10 +493,12 @@ function App() {
 
   useEffect(() => {
     setActiveTextColor(data.settings.textStyles.defaultText.color)
+    setActiveTextSize(data.settings.textStyles.defaultText.fontSize)
     setActiveHighlightColor(data.settings.defaultHighlightColor)
   }, [
     data.settings.defaultHighlightColor,
     data.settings.textStyles.defaultText.color,
+    data.settings.textStyles.defaultText.fontSize,
   ])
 
   useEffect(() => {
@@ -681,6 +684,32 @@ function App() {
   const applyDefaultTextBlock = () => {
     document.execCommand('formatBlock', false, 'p')
     onEditorInput()
+  }
+
+  const applyInlineTextSize = (size: number) => {
+    const selection = window.getSelection()
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+      setStatus('Select text to apply custom size')
+      return
+    }
+
+    const range = selection.getRangeAt(0)
+    const wrapper = document.createElement('span')
+    wrapper.style.fontSize = `${size}px`
+
+    try {
+      const content = range.extractContents()
+      wrapper.appendChild(content)
+      range.insertNode(wrapper)
+      selection.removeAllRanges()
+      const postRange = document.createRange()
+      postRange.selectNodeContents(wrapper)
+      selection.addRange(postRange)
+      onEditorInput()
+      setStatus(`Applied ${size}px text size`)
+    } catch {
+      setStatus('Unable to apply custom text size here')
+    }
   }
 
   const pasteAsDefaultText = async () => {
@@ -1333,6 +1362,25 @@ function App() {
                   applyCommand('foreColor', event.target.value)
                 }}
               />
+            </label>
+            <label className="toolbar-size-control">
+              <span>Text Size</span>
+              <select
+                value={activeTextSize}
+                onChange={(event) => {
+                  const nextSize = Number(event.target.value)
+                  setActiveTextSize(nextSize)
+                  applyInlineTextSize(nextSize)
+                }}
+              >
+                {[10, 11, 12, 13, 14, 15, 16, 18, 20, 24, 28, 32, 36, 40].map(
+                  (size) => (
+                    <option key={size} value={size}>
+                      {size}px
+                    </option>
+                  ),
+                )}
+              </select>
             </label>
             <button type="button" onClick={() => applyCommand('bold')}>
               Bold
