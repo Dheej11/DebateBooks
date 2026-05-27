@@ -137,18 +137,14 @@ button:disabled {
   background: var(--accent-border);
 }
 
-.folder-root-drop-zone {
-  border: 1px dashed var(--border);
+.files-main-drop-area {
   border-radius: 8px;
-  padding: 6px 8px;
-  font-size: 12px;
-  color: var(--text);
-  margin-bottom: 8px;
+  padding: 2px;
 }
 
-.folder-root-drop-zone-active {
-  border-color: var(--accent);
+.files-main-drop-area-active {
   background: var(--accent-bg);
+  outline: 1px dashed var(--accent);
 }
 
 .doc-button,

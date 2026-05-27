@@ -656,6 +656,16 @@ function App() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [])
 
+  useEffect(() => {
+    const clear = () => clearDragState()
+    window.addEventListener('dragend', clear)
+    window.addEventListener('drop', clear)
+    return () => {
+      window.removeEventListener('dragend', clear)
+      window.removeEventListener('drop', clear)
+    }
+  }, [])
+
   const mutateActiveDebateDoc = (updater: (doc: DebateDocument) => void) => {
     setData((previous) => {
       const nextDocs = previous.debateDocs.map((doc) => {
@@ -1225,6 +1235,8 @@ function App() {
     moveDocToFolder(draggingDocId, folderId)
     setDraggingDocId(null)
     setDropTargetFolderId(null)
+    setDraggingFolderId(null)
+    setFolderDropTarget(null)
   }
 
   const onFolderStructureDrop = () => {
@@ -1242,6 +1254,15 @@ function App() {
       )
     }
 
+    setDraggingFolderId(null)
+    setFolderDropTarget(null)
+    setDraggingDocId(null)
+    setDropTargetFolderId(null)
+  }
+
+  const clearDragState = () => {
+    setDraggingDocId(null)
+    setDropTargetFolderId(null)
     setDraggingFolderId(null)
     setFolderDropTarget(null)
   }
@@ -1357,6 +1378,8 @@ function App() {
       const afterActive =
         folderDropTarget?.folderId === folder.id && folderDropTarget.mode === 'after'
 
+      const childFolders = renderFolderTree(folder.id, depth + 1)
+
       return (
         <div key={folder.id} className="folder-tree-node" style={{ marginLeft: depth * 14 }}>
           <div
@@ -1365,10 +1388,12 @@ function App() {
               if (!draggingFolderId) {
                 return
               }
+              event.stopPropagation()
               event.preventDefault()
               setFolderDropTarget({ mode: 'before', folderId: folder.id })
             }}
             onDrop={(event) => {
+              event.stopPropagation()
               event.preventDefault()
               onFolderStructureDrop()
             }}
@@ -1376,6 +1401,7 @@ function App() {
           <div
             className={`stack folder-drop-zone ${insideActive ? 'folder-drop-zone-active' : ''}`}
             onDragOver={(event) => {
+              event.stopPropagation()
               event.preventDefault()
               if (draggingFolderId) {
                 setFolderDropTarget({ mode: 'inside', folderId: folder.id })
@@ -1383,14 +1409,8 @@ function App() {
                 setDropTargetFolderId(folder.id)
               }
             }}
-            onDragLeave={() => {
-              if (draggingFolderId) {
-                setFolderDropTarget(null)
-              } else {
-                setDropTargetFolderId(null)
-              }
-            }}
             onDrop={(event) => {
+              event.stopPropagation()
               event.preventDefault()
               if (draggingFolderId) {
                 onFolderStructureDrop()
@@ -1406,10 +1426,7 @@ function App() {
                 setDraggingFolderId(folder.id)
                 setFolderDropTarget(null)
               }}
-              onDragEnd={() => {
-                setDraggingFolderId(null)
-                setFolderDropTarget(null)
-              }}
+              onDragEnd={clearDragState}
             >
               <strong>{folder.name}</strong>
               <button
@@ -1428,10 +1445,7 @@ function App() {
                     type="button"
                     draggable
                     onDragStart={() => setDraggingDocId(doc.id)}
-                    onDragEnd={() => {
-                      setDraggingDocId(null)
-                      setDropTargetFolderId(null)
-                    }}
+                    onDragEnd={clearDragState}
                     onContextMenu={(event) => onDocContextMenu(event, doc.id)}
                     className={`doc-button ${
                       doc.id === data.activeDebateDocId ? 'doc-button-active' : ''
@@ -1443,18 +1457,20 @@ function App() {
                   </button>
                 ))
               : null}
+            {!isCollapsed ? childFolders : null}
           </div>
-          {!isCollapsed ? renderFolderTree(folder.id, depth + 1) : null}
           <div
             className={`folder-drop-line ${afterActive ? 'folder-drop-line-active' : ''}`}
             onDragOver={(event) => {
               if (!draggingFolderId) {
                 return
               }
+              event.stopPropagation()
               event.preventDefault()
               setFolderDropTarget({ mode: 'after', folderId: folder.id })
             }}
             onDrop={(event) => {
+              event.stopPropagation()
               event.preventDefault()
               onFolderStructureDrop()
             }}
@@ -1787,12 +1803,16 @@ function App() {
                 dropTargetFolderId === 'root' ? 'folder-drop-zone-active' : ''
               }`}
               onDragOver={(event) => {
+                if (!draggingDocId) {
+                  return
+                }
                 event.preventDefault()
+                event.stopPropagation()
                 setDropTargetFolderId('root')
               }}
-              onDragLeave={() => setDropTargetFolderId(null)}
               onDrop={(event) => {
                 event.preventDefault()
+                event.stopPropagation()
                 onFolderDrop(null)
               }}
             >
@@ -1803,10 +1823,7 @@ function App() {
                   type="button"
                   draggable
                   onDragStart={() => setDraggingDocId(doc.id)}
-                  onDragEnd={() => {
-                    setDraggingDocId(null)
-                    setDropTargetFolderId(null)
-                  }}
+                  onDragEnd={clearDragState}
                   onContextMenu={(event) => onDocContextMenu(event, doc.id)}
                   className={`doc-button ${
                     doc.id === data.activeDebateDocId ? 'doc-button-active' : ''
@@ -1819,9 +1836,9 @@ function App() {
               ))}
             </div>
             <div
-              className={`folder-root-drop-zone ${
-                folderDropTarget?.mode === 'inside' && folderDropTarget.folderId === '__root__'
-                  ? 'folder-root-drop-zone-active'
+              className={`files-main-drop-area ${
+                draggingFolderId && folderDropTarget?.folderId === '__root__'
+                  ? 'files-main-drop-area-active'
                   : ''
               }`}
               onDragOver={(event) => {
@@ -1829,20 +1846,20 @@ function App() {
                   return
                 }
                 event.preventDefault()
+                event.stopPropagation()
                 setFolderDropTarget({ mode: 'inside', folderId: '__root__' })
               }}
               onDrop={(event) => {
                 event.preventDefault()
+                event.stopPropagation()
                 if (draggingFolderId) {
                   moveFolderInside(draggingFolderId, null)
-                  setDraggingFolderId(null)
-                  setFolderDropTarget(null)
+                  clearDragState()
                 }
               }}
             >
-              Drop folder here to move to root level
+              {renderFolderTree(null)}
             </div>
-            {renderFolderTree(null)}
             <p className="hint">
               Drag files into folders. Drag folders to nest or reorder.
             </p>
