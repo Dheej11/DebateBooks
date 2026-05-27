@@ -16,6 +16,13 @@ interface DebateDocument {
   title: string
   updatedAt: number
   content: string
+  folderId: string | null
+}
+
+interface DebateFolder {
+  id: string
+  name: string
+  createdAt: number
 }
 
 interface SpeechDocument {
@@ -28,6 +35,7 @@ interface SpeechDocument {
 
 interface AppData {
   debateDocs: DebateDocument[]
+  folders: DebateFolder[]
   speechDocs: SpeechDocument[]
   activeDebateDocId: string
   activeSpeechId: string
@@ -35,7 +43,14 @@ interface AppData {
 }
 
 type LeftPanelView = 'files' | 'settings'
-type FontStylePreset = 'normal' | 'bold' | 'italic' | 'boldItalic' | 'underline'
+type FontStylePreset =
+  | 'normal'
+  | 'bold'
+  | 'italic'
+  | 'boldItalic'
+  | 'underline'
+  | 'boldUnderline'
+type TextAlignPreset = 'left' | 'center' | 'right'
 type ShortcutAction =
   | 'bold'
   | 'underline'
@@ -55,6 +70,7 @@ interface TextStyleSetting {
   fontSize: number
   style: FontStylePreset
   color: string
+  align: TextAlignPreset
 }
 
 interface EditorSettings {
@@ -74,11 +90,11 @@ const STORAGE_KEY = 'debatefiles.v1'
 const defaultSettings: EditorSettings = {
   defaultFont: 'Arial',
   textStyles: {
-    defaultText: { fontSize: 15, style: 'normal', color: '#111827' },
-    tag: { fontSize: 16, style: 'bold', color: '#6b21a8' },
-    heading1: { fontSize: 34, style: 'bold', color: '#0f172a' },
-    heading2: { fontSize: 26, style: 'bold', color: '#1f2937' },
-    heading3: { fontSize: 20, style: 'bold', color: '#374151' },
+    defaultText: { fontSize: 15, style: 'normal', color: '#111827', align: 'left' },
+    tag: { fontSize: 16, style: 'bold', color: '#6b21a8', align: 'left' },
+    heading1: { fontSize: 34, style: 'bold', color: '#0f172a', align: 'left' },
+    heading2: { fontSize: 26, style: 'bold', color: '#1f2937', align: 'left' },
+    heading3: { fontSize: 20, style: 'bold', color: '#374151', align: 'left' },
   },
   defaultHighlightColor: '#fff59d',
   shortcuts: {
@@ -114,6 +130,13 @@ const styleChoices: Array<{ value: FontStylePreset; label: string }> = [
   { value: 'italic', label: 'Italic' },
   { value: 'boldItalic', label: 'Bold Italic' },
   { value: 'underline', label: 'Underline' },
+  { value: 'boldUnderline', label: 'Bold + Underline' },
+]
+
+const headingAlignmentChoices: Array<{ value: TextAlignPreset; label: string }> = [
+  { value: 'left', label: 'Left' },
+  { value: 'center', label: 'Center' },
+  { value: 'right', label: 'Right' },
 ]
 
 const colorChoices = [
@@ -154,6 +177,12 @@ const styleToCss = (preset: FontStylePreset) => {
         fontStyle: 'normal',
         textDecoration: 'underline',
       }
+    case 'boldUnderline':
+      return {
+        fontWeight: 700,
+        fontStyle: 'normal',
+        textDecoration: 'underline',
+      }
     default:
       return {
         fontWeight: 400,
@@ -172,6 +201,12 @@ const textStyleGroups: Array<{
   { key: 'heading1', label: 'Heading 1' },
   { key: 'heading2', label: 'Heading 2' },
   { key: 'heading3', label: 'Heading 3' },
+]
+
+const headingKeys: Array<keyof EditorSettings['textStyles']> = [
+  'heading1',
+  'heading2',
+  'heading3',
 ]
 
 const shortcutGroups: Array<{
@@ -309,6 +344,7 @@ const defaultData = (): AppData => {
 <h2>Advantages</h2>
 <h3>Climate Advantage</h3>
 <p>Paste evidence here and cut cards directly in this document.</p>`,
+    folderId: null,
   }
 
   const speechDoc: SpeechDocument = {
@@ -321,6 +357,7 @@ const defaultData = (): AppData => {
 
   return {
     debateDocs: [debateDoc],
+    folders: [],
     speechDocs: [speechDoc],
     activeDebateDocId: debateDoc.id,
     activeSpeechId: speechDoc.id,
@@ -367,6 +404,11 @@ function App() {
       }
       return {
         ...parsed,
+        folders: parsed.folders ?? [],
+        debateDocs: parsed.debateDocs.map((doc) => ({
+          ...doc,
+          folderId: doc.folderId ?? null,
+        })),
         settings: {
           ...defaultSettings,
           ...(parsed.settings ?? {}),
@@ -392,6 +434,13 @@ function App() {
   const [isResizingLeftPanel, setIsResizingLeftPanel] = useState(false)
   const [activeTextColor, setActiveTextColor] = useState('#111827')
   const [activeHighlightColor, setActiveHighlightColor] = useState('#fff59d')
+  const [draggingDocId, setDraggingDocId] = useState<string | null>(null)
+  const [dropTargetFolderId, setDropTargetFolderId] = useState<string | null>(null)
+  const [activeContextDocId, setActiveContextDocId] = useState<string | null>(null)
+  const [contextMenuPosition, setContextMenuPosition] = useState<{
+    x: number
+    y: number
+  } | null>(null)
   const editorRef = useRef<HTMLDivElement | null>(null)
   const leftResizeStateRef = useRef<{ startX: number; startWidth: number } | null>(
     null,
@@ -406,6 +455,24 @@ function App() {
     () => data.speechDocs.find((doc) => doc.id === data.activeSpeechId) ?? null,
     [data.speechDocs, data.activeSpeechId],
   )
+
+  const rootDocs = useMemo(
+    () => data.debateDocs.filter((doc) => !doc.folderId),
+    [data.debateDocs],
+  )
+
+  const docsByFolder = useMemo(() => {
+    const map = new Map<string, DebateDocument[]>()
+    for (const folder of data.folders) {
+      map.set(folder.id, [])
+    }
+    for (const doc of data.debateDocs) {
+      if (doc.folderId && map.has(doc.folderId)) {
+        map.get(doc.folderId)?.push(doc)
+      }
+    }
+    return map
+  }, [data.debateDocs, data.folders])
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
@@ -467,6 +534,16 @@ function App() {
     }
   }, [isResizingLeftPanel])
 
+  useEffect(() => {
+    const dismissContextMenu = () => {
+      setActiveContextDocId(null)
+      setContextMenuPosition(null)
+    }
+
+    window.addEventListener('click', dismissContextMenu)
+    return () => window.removeEventListener('click', dismissContextMenu)
+  }, [])
+
   const mutateActiveDebateDoc = (updater: (doc: DebateDocument) => void) => {
     setData((previous) => {
       const nextDocs = previous.debateDocs.map((doc) => {
@@ -507,6 +584,7 @@ function App() {
       title: 'Untitled Debate File',
       updatedAt: Date.now(),
       content: '<h1>New File</h1><p>Start writing...</p>',
+      folderId: null,
     }
 
     setData((previous) => ({
@@ -529,6 +607,24 @@ function App() {
       ...previous,
       speechDocs: [speech, ...previous.speechDocs],
       activeSpeechId: speech.id,
+    }))
+  }
+
+  const createFolder = () => {
+    const folderName = window.prompt('Folder name')
+    if (!folderName?.trim()) {
+      return
+    }
+
+    const folder: DebateFolder = {
+      id: crypto.randomUUID(),
+      name: folderName.trim(),
+      createdAt: Date.now(),
+    }
+
+    setData((previous) => ({
+      ...previous,
+      folders: [...previous.folders, folder],
     }))
   }
 
@@ -713,6 +809,41 @@ function App() {
     })
   }
 
+  const moveDocToFolder = (docId: string, folderId: string | null) => {
+    setData((previous) => ({
+      ...previous,
+      debateDocs: previous.debateDocs.map((doc) =>
+        doc.id === docId ? { ...doc, folderId, updatedAt: Date.now() } : doc,
+      ),
+    }))
+  }
+
+  const exportDocById = (docId: string) => {
+    const doc = data.debateDocs.find((item) => item.id === docId)
+    if (!doc) {
+      return
+    }
+    exportJson(doc.title, doc)
+  }
+
+  const onDocContextMenu = (
+    event: ReactMouseEvent<HTMLButtonElement>,
+    docId: string,
+  ) => {
+    event.preventDefault()
+    setActiveContextDocId(docId)
+    setContextMenuPosition({ x: event.clientX, y: event.clientY })
+  }
+
+  const onFolderDrop = (folderId: string | null) => {
+    if (!draggingDocId) {
+      return
+    }
+    moveDocToFolder(draggingDocId, folderId)
+    setDraggingDocId(null)
+    setDropTargetFolderId(null)
+  }
+
   const onEditorKeyDown: KeyboardEventHandler<HTMLDivElement> = (event) => {
     for (const group of shortcutGroups) {
       const shortcut = data.settings.shortcuts[group.key]
@@ -740,7 +871,10 @@ function App() {
 
       setData((previous) => ({
         ...previous,
-        debateDocs: [{ ...imported, id: crypto.randomUUID() }, ...previous.debateDocs],
+        debateDocs: [
+          { ...imported, id: crypto.randomUUID(), folderId: null },
+          ...previous.debateDocs,
+        ],
       }))
       setStatus(`Imported ${file.name}`)
     } catch {
@@ -872,6 +1006,23 @@ function App() {
                       ))}
                     </select>
                   </label>
+                  {headingKeys.includes(group.key) ? (
+                    <label className="settings-row">
+                      <span>Alignment</span>
+                      <select
+                        value={data.settings.textStyles[group.key].align}
+                        onChange={(event) =>
+                          updateTextStyleSetting(group.key, 'align', event.target.value)
+                        }
+                      >
+                        {headingAlignmentChoices.map((alignment) => (
+                          <option key={alignment.value} value={alignment.value}>
+                            {alignment.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
                   <label className="settings-row">
                     <span>Color</span>
                     <div className="color-row">
@@ -929,38 +1080,151 @@ function App() {
           </div>
         ) : (
           <>
-        <div className="row">
-          <button type="button" onClick={createDebateDoc}>
-            New File
-          </button>
-          <label className="button-like">
-            Import
-            <input type="file" accept="application/json" onChange={importDebateDoc} />
-          </label>
-        </div>
-        <div className="stack">
-          {data.debateDocs.map((doc) => (
-            <button
-              key={doc.id}
-              type="button"
-              className={`doc-button ${
-                doc.id === data.activeDebateDocId ? 'doc-button-active' : ''
+            <div className="row">
+              <button type="button" onClick={createDebateDoc}>
+                New File
+              </button>
+              <button type="button" onClick={createFolder}>
+                New Folder
+              </button>
+              <label className="button-like">
+                Import
+                <input type="file" accept="application/json" onChange={importDebateDoc} />
+              </label>
+            </div>
+            <div
+              className={`stack folder-drop-zone ${
+                dropTargetFolderId === 'root' ? 'folder-drop-zone-active' : ''
               }`}
-              onClick={() =>
-                setData((previous) => ({
-                  ...previous,
-                  activeDebateDocId: doc.id,
-                }))
-              }
+              onDragOver={(event) => {
+                event.preventDefault()
+                setDropTargetFolderId('root')
+              }}
+              onDragLeave={() => setDropTargetFolderId(null)}
+              onDrop={(event) => {
+                event.preventDefault()
+                onFolderDrop(null)
+              }}
             >
-              <span>{doc.title}</span>
-              <small>Updated {formatDate(doc.updatedAt)}</small>
-            </button>
-          ))}
-        </div>
-        <p className="hint">
-          Each file opens as one continuous editable page, like Google Docs.
-        </p>
+              <strong>Unfiled</strong>
+              {rootDocs.map((doc) => (
+                <button
+                  key={doc.id}
+                  type="button"
+                  draggable
+                  onDragStart={() => setDraggingDocId(doc.id)}
+                  onDragEnd={() => {
+                    setDraggingDocId(null)
+                    setDropTargetFolderId(null)
+                  }}
+                  onContextMenu={(event) => onDocContextMenu(event, doc.id)}
+                  className={`doc-button ${
+                    doc.id === data.activeDebateDocId ? 'doc-button-active' : ''
+                  }`}
+                  onClick={() =>
+                    setData((previous) => ({
+                      ...previous,
+                      activeDebateDocId: doc.id,
+                    }))
+                  }
+                >
+                  <span>{doc.title}</span>
+                  <small>Updated {formatDate(doc.updatedAt)}</small>
+                </button>
+              ))}
+            </div>
+            {data.folders.map((folder) => (
+              <div
+                key={folder.id}
+                className={`stack folder-drop-zone ${
+                  dropTargetFolderId === folder.id ? 'folder-drop-zone-active' : ''
+                }`}
+                onDragOver={(event) => {
+                  event.preventDefault()
+                  setDropTargetFolderId(folder.id)
+                }}
+                onDragLeave={() => setDropTargetFolderId(null)}
+                onDrop={(event) => {
+                  event.preventDefault()
+                  onFolderDrop(folder.id)
+                }}
+              >
+                <strong>{folder.name}</strong>
+                {(docsByFolder.get(folder.id) ?? []).map((doc) => (
+                  <button
+                    key={doc.id}
+                    type="button"
+                    draggable
+                    onDragStart={() => setDraggingDocId(doc.id)}
+                    onDragEnd={() => {
+                      setDraggingDocId(null)
+                      setDropTargetFolderId(null)
+                    }}
+                    onContextMenu={(event) => onDocContextMenu(event, doc.id)}
+                    className={`doc-button ${
+                      doc.id === data.activeDebateDocId ? 'doc-button-active' : ''
+                    }`}
+                    onClick={() =>
+                      setData((previous) => ({
+                        ...previous,
+                        activeDebateDocId: doc.id,
+                      }))
+                    }
+                  >
+                    <span>{doc.title}</span>
+                    <small>Updated {formatDate(doc.updatedAt)}</small>
+                  </button>
+                ))}
+              </div>
+            ))}
+            <p className="hint">
+              Drag files into folders, or right-click a file for more options.
+            </p>
+            {activeContextDocId && contextMenuPosition ? (
+              <div
+                className="context-menu"
+                style={{
+                  top: `${contextMenuPosition.y}px`,
+                  left: `${contextMenuPosition.x}px`,
+                }}
+              >
+                <div className="context-menu-section">Move to folder</div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    moveDocToFolder(activeContextDocId, null)
+                    setActiveContextDocId(null)
+                    setContextMenuPosition(null)
+                  }}
+                >
+                  Unfiled
+                </button>
+                {data.folders.map((folder) => (
+                  <button
+                    key={folder.id}
+                    type="button"
+                    onClick={() => {
+                      moveDocToFolder(activeContextDocId, folder.id)
+                      setActiveContextDocId(null)
+                      setContextMenuPosition(null)
+                    }}
+                  >
+                    {folder.name}
+                  </button>
+                ))}
+                <div className="context-menu-divider" />
+                <button
+                  type="button"
+                  onClick={() => {
+                    exportDocById(activeContextDocId)
+                    setActiveContextDocId(null)
+                    setContextMenuPosition(null)
+                  }}
+                >
+                  Export file
+                </button>
+              </div>
+            ) : null}
           </>
         )}
         <div
@@ -1057,6 +1321,7 @@ function App() {
                   font-style: ${styleToCss(data.settings.textStyles.heading1.style).fontStyle};
                   text-decoration: ${styleToCss(data.settings.textStyles.heading1.style).textDecoration};
                   color: ${data.settings.textStyles.heading1.color};
+                  text-align: ${data.settings.textStyles.heading1.align};
                 }
 
                 .single-editor h2 {
@@ -1065,6 +1330,7 @@ function App() {
                   font-style: ${styleToCss(data.settings.textStyles.heading2.style).fontStyle};
                   text-decoration: ${styleToCss(data.settings.textStyles.heading2.style).textDecoration};
                   color: ${data.settings.textStyles.heading2.color};
+                  text-align: ${data.settings.textStyles.heading2.align};
                 }
 
                 .single-editor h3 {
@@ -1073,6 +1339,7 @@ function App() {
                   font-style: ${styleToCss(data.settings.textStyles.heading3.style).fontStyle};
                   text-decoration: ${styleToCss(data.settings.textStyles.heading3.style).textDecoration};
                   color: ${data.settings.textStyles.heading3.color};
+                  text-align: ${data.settings.textStyles.heading3.align};
                 }
 
                 .single-editor .tag-text {
