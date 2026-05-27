@@ -54,6 +54,7 @@ type ShortcutAction =
 interface TextStyleSetting {
   fontSize: number
   style: FontStylePreset
+  color: string
 }
 
 interface EditorSettings {
@@ -65,6 +66,7 @@ interface EditorSettings {
     heading2: TextStyleSetting
     heading3: TextStyleSetting
   }
+  defaultHighlightColor: string
   shortcuts: Record<ShortcutAction, string>
 }
 
@@ -72,12 +74,13 @@ const STORAGE_KEY = 'debatefiles.v1'
 const defaultSettings: EditorSettings = {
   defaultFont: 'Arial',
   textStyles: {
-    defaultText: { fontSize: 15, style: 'normal' },
-    tag: { fontSize: 16, style: 'bold' },
-    heading1: { fontSize: 34, style: 'bold' },
-    heading2: { fontSize: 26, style: 'bold' },
-    heading3: { fontSize: 20, style: 'bold' },
+    defaultText: { fontSize: 15, style: 'normal', color: '#111827' },
+    tag: { fontSize: 16, style: 'bold', color: '#6b21a8' },
+    heading1: { fontSize: 34, style: 'bold', color: '#0f172a' },
+    heading2: { fontSize: 26, style: 'bold', color: '#1f2937' },
+    heading3: { fontSize: 20, style: 'bold', color: '#374151' },
   },
+  defaultHighlightColor: '#fff59d',
   shortcuts: {
     bold: 'Mod+B',
     underline: 'Mod+U',
@@ -111,6 +114,18 @@ const styleChoices: Array<{ value: FontStylePreset; label: string }> = [
   { value: 'italic', label: 'Italic' },
   { value: 'boldItalic', label: 'Bold Italic' },
   { value: 'underline', label: 'Underline' },
+]
+
+const colorChoices = [
+  '#111827',
+  '#1f2937',
+  '#374151',
+  '#6b7280',
+  '#1d4ed8',
+  '#7c2d12',
+  '#166534',
+  '#6b21a8',
+  '#b91c1c',
 ]
 
 const styleToCss = (preset: FontStylePreset) => {
@@ -375,6 +390,8 @@ function App() {
   const [leftPanelView, setLeftPanelView] = useState<LeftPanelView>('files')
   const [leftPanelWidth, setLeftPanelWidth] = useState(290)
   const [isResizingLeftPanel, setIsResizingLeftPanel] = useState(false)
+  const [activeTextColor, setActiveTextColor] = useState('#111827')
+  const [activeHighlightColor, setActiveHighlightColor] = useState('#fff59d')
   const editorRef = useRef<HTMLDivElement | null>(null)
   const leftResizeStateRef = useRef<{ startX: number; startWidth: number } | null>(
     null,
@@ -404,6 +421,14 @@ function App() {
       editorRef.current.innerHTML = activeDebateDoc.content
     }
   }, [activeDebateDoc?.id, activeDebateDoc?.content])
+
+  useEffect(() => {
+    setActiveTextColor(data.settings.textStyles.defaultText.color)
+    setActiveHighlightColor(data.settings.defaultHighlightColor)
+  }, [
+    data.settings.defaultHighlightColor,
+    data.settings.textStyles.defaultText.color,
+  ])
 
   useEffect(() => {
     if (!isResizingLeftPanel) {
@@ -508,7 +533,7 @@ function App() {
   }
 
   const applyCommand = (
-    command: 'bold' | 'underline' | 'hiliteColor',
+    command: 'bold' | 'underline' | 'hiliteColor' | 'foreColor',
     value?: string,
   ) => {
     editorRef.current?.focus()
@@ -590,7 +615,7 @@ function App() {
         applyCommand('underline')
         break
       case 'highlight':
-        applyCommand('hiliteColor', 'yellow')
+        applyCommand('hiliteColor', activeHighlightColor)
         break
       case 'boldUnderline':
         applyCommand('bold')
@@ -599,7 +624,7 @@ function App() {
       case 'boldUnderlineHighlight':
         applyCommand('bold')
         applyCommand('underline')
-        applyCommand('hiliteColor', 'yellow')
+        applyCommand('hiliteColor', activeHighlightColor)
         break
       case 'pasteAsDefaultText':
         void pasteAsDefaultText()
@@ -777,6 +802,34 @@ function App() {
                   ))}
                 </select>
               </label>
+              <label className="settings-row">
+                <span>Default highlight color</span>
+                <div className="color-row">
+                  <input
+                    type="color"
+                    value={data.settings.defaultHighlightColor}
+                    onChange={(event) =>
+                      updateSettings((settings) => {
+                        settings.defaultHighlightColor = event.target.value
+                      })
+                    }
+                  />
+                  <select
+                    value={data.settings.defaultHighlightColor}
+                    onChange={(event) =>
+                      updateSettings((settings) => {
+                        settings.defaultHighlightColor = event.target.value
+                      })
+                    }
+                  >
+                    {colorChoices.map((color) => (
+                      <option key={color} value={color}>
+                        {color}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </label>
             </div>
             <div className="settings-group">
               <h4>Text + Style Defaults</h4>
@@ -818,6 +871,30 @@ function App() {
                         </option>
                       ))}
                     </select>
+                  </label>
+                  <label className="settings-row">
+                    <span>Color</span>
+                    <div className="color-row">
+                      <input
+                        type="color"
+                        value={data.settings.textStyles[group.key].color}
+                        onChange={(event) =>
+                          updateTextStyleSetting(group.key, 'color', event.target.value)
+                        }
+                      />
+                      <select
+                        value={data.settings.textStyles[group.key].color}
+                        onChange={(event) =>
+                          updateTextStyleSetting(group.key, 'color', event.target.value)
+                        }
+                      >
+                        {colorChoices.map((color) => (
+                          <option key={color} value={color}>
+                            {color}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </label>
                 </div>
               </div>
@@ -900,15 +977,37 @@ function App() {
       <section className="editor-panel">
         <header className="editor-toolbar">
           <div className="row">
+            <label className="toolbar-color-control toolbar-color-control-primary">
+              <span>Text Color</span>
+              <input
+                type="color"
+                value={activeTextColor}
+                onChange={(event) => {
+                  setActiveTextColor(event.target.value)
+                  applyCommand('foreColor', event.target.value)
+                }}
+              />
+            </label>
             <button type="button" onClick={() => applyCommand('bold')}>
               Bold
             </button>
             <button type="button" onClick={() => applyCommand('underline')}>
               Underline
             </button>
-            <button type="button" onClick={() => applyCommand('hiliteColor', 'yellow')}>
+            <button
+              type="button"
+              onClick={() => applyCommand('hiliteColor', activeHighlightColor)}
+            >
               Highlight
             </button>
+            <label className="toolbar-color-swatch" title="Highlight color">
+              <span className="sr-only">Highlight color</span>
+              <input
+                type="color"
+                value={activeHighlightColor}
+                onChange={(event) => setActiveHighlightColor(event.target.value)}
+              />
+            </label>
             <button type="button" onClick={condenseSelection}>
               Condense
             </button>
@@ -949,6 +1048,7 @@ function App() {
                   font-weight: ${styleToCss(data.settings.textStyles.defaultText.style).fontWeight};
                   font-style: ${styleToCss(data.settings.textStyles.defaultText.style).fontStyle};
                   text-decoration: ${styleToCss(data.settings.textStyles.defaultText.style).textDecoration};
+                  color: ${data.settings.textStyles.defaultText.color};
                 }
 
                 .single-editor h1 {
@@ -956,6 +1056,7 @@ function App() {
                   font-weight: ${styleToCss(data.settings.textStyles.heading1.style).fontWeight};
                   font-style: ${styleToCss(data.settings.textStyles.heading1.style).fontStyle};
                   text-decoration: ${styleToCss(data.settings.textStyles.heading1.style).textDecoration};
+                  color: ${data.settings.textStyles.heading1.color};
                 }
 
                 .single-editor h2 {
@@ -963,6 +1064,7 @@ function App() {
                   font-weight: ${styleToCss(data.settings.textStyles.heading2.style).fontWeight};
                   font-style: ${styleToCss(data.settings.textStyles.heading2.style).fontStyle};
                   text-decoration: ${styleToCss(data.settings.textStyles.heading2.style).textDecoration};
+                  color: ${data.settings.textStyles.heading2.color};
                 }
 
                 .single-editor h3 {
@@ -970,6 +1072,7 @@ function App() {
                   font-weight: ${styleToCss(data.settings.textStyles.heading3.style).fontWeight};
                   font-style: ${styleToCss(data.settings.textStyles.heading3.style).fontStyle};
                   text-decoration: ${styleToCss(data.settings.textStyles.heading3.style).textDecoration};
+                  color: ${data.settings.textStyles.heading3.color};
                 }
 
                 .single-editor .tag-text {
@@ -977,6 +1080,7 @@ function App() {
                   font-weight: ${styleToCss(data.settings.textStyles.tag.style).fontWeight};
                   font-style: ${styleToCss(data.settings.textStyles.tag.style).fontStyle};
                   text-decoration: ${styleToCss(data.settings.textStyles.tag.style).textDecoration};
+                  color: ${data.settings.textStyles.tag.color};
                 }
               `}
             </style>
