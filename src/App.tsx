@@ -1136,11 +1136,11 @@ function App() {
         ) : (
           <>
             <div className="row">
-              <button type="button" onClick={createDebateDoc}>
-                New File
-              </button>
               <button type="button" onClick={createFolder}>
                 New Folder
+              </button>
+              <button type="button" onClick={createDebateDoc}>
+                New File
               </button>
               <label className="button-like">
                 Import
