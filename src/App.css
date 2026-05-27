@@ -21,6 +21,23 @@
   margin: 0 0 10px;
 }
 
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.icon-button {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  font-size: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .row {
   display: flex;
   gap: 8px;
@@ -137,6 +154,25 @@ button:disabled {
 .hint {
   font-size: 12px;
   color: var(--text);
+}
+
+.settings-panel {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--text-h);
+}
+
+.settings-row input {
+  margin: 0;
 }
 
 .tree {

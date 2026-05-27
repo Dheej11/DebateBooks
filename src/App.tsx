@@ -30,6 +30,8 @@ interface AppData {
   activeSpeechId: string
 }
 
+type LeftPanelView = 'files' | 'settings'
+
 const STORAGE_KEY = 'debatefiles.v1'
 
 const defaultData = (): AppData => {
@@ -104,6 +106,7 @@ function App() {
 
   const [invisibilityMode, setInvisibilityMode] = useState(false)
   const [status, setStatus] = useState('Ready')
+  const [leftPanelView, setLeftPanelView] = useState<LeftPanelView>('files')
   const editorRef = useRef<HTMLDivElement | null>(null)
 
   const activeDebateDoc = useMemo(
@@ -301,7 +304,42 @@ function App() {
   return (
     <main className="app-layout">
       <aside className="panel">
-        <h2>Debate Files</h2>
+        <div className="panel-header">
+          <h2>Debate Files</h2>
+          <button
+            type="button"
+            className="icon-button"
+            aria-label="Open settings"
+            title="Settings"
+            onClick={() =>
+              setLeftPanelView((previous) =>
+                previous === 'settings' ? 'files' : 'settings',
+              )
+            }
+          >
+            ⚙
+          </button>
+        </div>
+        {leftPanelView === 'settings' ? (
+          <div className="settings-panel">
+            <h3>Settings</h3>
+            <label className="settings-row">
+              <input
+                type="checkbox"
+                checked={invisibilityMode}
+                onChange={(event) => setInvisibilityMode(event.target.checked)}
+              />
+              Start in invisibility mode
+            </label>
+            <button type="button" onClick={() => setLeftPanelView('files')}>
+              Back to Files
+            </button>
+            <p className="hint">
+              More options can be added here (shortcuts, defaults, and export behavior).
+            </p>
+          </div>
+        ) : (
+          <>
         <div className="row">
           <button type="button" onClick={createDebateDoc}>
             New File
@@ -334,6 +372,8 @@ function App() {
         <p className="hint">
           Each file opens as one continuous editable page, like Google Docs.
         </p>
+          </>
+        )}
       </aside>
 
       <section className="editor-panel">
