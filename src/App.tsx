@@ -42,6 +42,7 @@ type ShortcutAction =
   | 'highlight'
   | 'boldUnderline'
   | 'boldUnderlineHighlight'
+  | 'pasteAsDefaultText'
   | 'tagText'
   | 'heading1'
   | 'heading2'
@@ -83,6 +84,7 @@ const defaultSettings: EditorSettings = {
     highlight: 'Mod+Shift+H',
     boldUnderline: 'Mod+Shift+U',
     boldUnderlineHighlight: 'Mod+Shift+J',
+    pasteAsDefaultText: 'Mod+Shift+V',
     tagText: 'Mod+Shift+T',
     heading1: 'Mod+Alt+1',
     heading2: 'Mod+Alt+2',
@@ -169,6 +171,7 @@ const shortcutGroups: Array<{
     key: 'boldUnderlineHighlight',
     label: 'Bold + Underline + Highlight',
   },
+  { key: 'pasteAsDefaultText', label: 'Paste as Default Text' },
   { key: 'tagText', label: 'Set text to Tag' },
   { key: 'heading1', label: 'Set text to Heading 1' },
   { key: 'heading2', label: 'Set text to Heading 2' },
@@ -558,6 +561,26 @@ function App() {
     onEditorInput()
   }
 
+  const pasteAsDefaultText = async () => {
+    if (!editorRef.current) {
+      return
+    }
+
+    editorRef.current.focus()
+
+    try {
+      const clipboardText = await navigator.clipboard.readText()
+      if (!clipboardText) {
+        return
+      }
+      document.execCommand('insertText', false, clipboardText)
+      onEditorInput()
+      setStatus('Pasted as default text')
+    } catch {
+      setStatus('Paste blocked by browser permissions')
+    }
+  }
+
   const runShortcutAction = (action: ShortcutAction) => {
     switch (action) {
       case 'bold':
@@ -577,6 +600,9 @@ function App() {
         applyCommand('bold')
         applyCommand('underline')
         applyCommand('hiliteColor', 'yellow')
+        break
+      case 'pasteAsDefaultText':
+        void pasteAsDefaultText()
         break
       case 'tagText':
         applyTagStyle()
@@ -964,8 +990,8 @@ function App() {
             />
             <p className="hint">
               Shortcuts: Cmd/Ctrl+B (bold), Cmd/Ctrl+U (underline), Cmd/Ctrl+Shift+H
-              (highlight), Cmd/Ctrl+Shift+C (condense), Cmd/Ctrl+Shift+S (send to
-              speech).
+              (highlight), Cmd/Ctrl+Shift+V (paste as default text), Cmd/Ctrl+Shift+C
+              (condense), Cmd/Ctrl+Shift+S (send to speech).
             </p>
           </article>
         ) : (
