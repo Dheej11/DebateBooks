@@ -205,6 +205,15 @@ const styleToCss = (preset: FontStylePreset) => {
   }
 }
 
+const normalizeCssColor = (value: string) => {
+  const probe = document.createElement('span')
+  probe.style.color = value
+  document.body.appendChild(probe)
+  const normalized = getComputedStyle(probe).color
+  document.body.removeChild(probe)
+  return normalized.replace(/\s+/g, '')
+}
+
 const textStyleGroups: Array<{
   key: keyof EditorSettings['textStyles']
   label: string
@@ -481,6 +490,7 @@ function App() {
   const [activeEditorTarget, setActiveEditorTarget] = useState<PrimaryView>('debate')
   const editorRef = useRef<HTMLDivElement | null>(null)
   const speechEditorRef = useRef<HTMLDivElement | null>(null)
+  const savedSelectionRef = useRef<Range | null>(null)
   const splitContainerRef = useRef<HTMLDivElement | null>(null)
   const leftResizeStateRef = useRef<{ startX: number; startWidth: number } | null>(
     null,
@@ -715,12 +725,31 @@ function App() {
     })
   }
 
+  // Builds an inline `style` attribute string for a given template style key.
+  const buildTemplateInlineStyle = (key: keyof EditorSettings['textStyles']): string => {
+    const ts = data.settings.textStyles[key]
+    const css = styleToCss(ts.style)
+    const parts = [
+      `font-family: ${data.settings.defaultFont}, Arial, sans-serif`,
+      `font-size: ${ts.fontSize}px`,
+      `font-weight: ${css.fontWeight}`,
+      `font-style: ${css.fontStyle}`,
+      `text-decoration: ${css.textDecoration}`,
+      `color: ${ts.color}`,
+    ]
+    if ('align' in ts && ts.align) {
+      parts.push(`text-align: ${ts.align}`)
+    }
+    return parts.join('; ')
+  }
+
   const createDebateDoc = () => {
+    const inlineStyle = buildTemplateInlineStyle('defaultText')
     const doc: DebateDocument = {
       id: crypto.randomUUID(),
       title: 'Untitled Debate File',
       updatedAt: Date.now(),
-      content: '<p>Start writing...</p>',
+      content: `<p style="${inlineStyle}">Start writing...</p>`,
       folderId: null,
     }
 
@@ -775,13 +804,35 @@ function App() {
     }))
   }
 
+  const getActiveEditorElement = () =>
+    activeEditorTarget === 'speech' ? speechEditorRef.current : editorRef.current
+
+  const saveCurrentSelection = () => {
+    const editor = getActiveEditorElement()
+    const selection = window.getSelection()
+    if (!editor || !selection || selection.rangeCount === 0) {
+      return
+    }
+
+    const range = selection.getRangeAt(0)
+    const container = range.commonAncestorContainer
+    if (editor.contains(container)) {
+      savedSelectionRef.current = range.cloneRange()
+    }
+  }
+
   const applyCommand = (
     command: 'bold' | 'underline' | 'hiliteColor' | 'foreColor',
     value?: string,
   ) => {
-    editorRef.current?.focus()
+    const targetEditor = getActiveEditorElement()
+    targetEditor?.focus()
     document.execCommand(command, false, value)
-    onEditorInput()
+    if (activeEditorTarget === 'speech') {
+      onSpeechEditorInput()
+    } else {
+      onEditorInput()
+    }
   }
 
   const condenseSelection = () => {
@@ -795,6 +846,21 @@ function App() {
     onEditorInput()
   }
 
+  // After execCommand('formatBlock') the caret is inside the new block element.
+  // Walk up from the current selection to find it and apply template inline styles.
+  const applyTemplateStyleToCurrentBlock = (tag: string, styleKey: keyof EditorSettings['textStyles']) => {
+    const selection = window.getSelection()
+    if (!selection || selection.rangeCount === 0) return
+    let node: Node | null = selection.getRangeAt(0).startContainer
+    while (node && node.nodeName.toLowerCase() !== tag) {
+      node = node.parentElement ?? null
+    }
+    if (node instanceof HTMLElement) {
+      const inlineStyle = buildTemplateInlineStyle(styleKey)
+      node.setAttribute('style', inlineStyle)
+    }
+  }
+
   const applyTagStyle = () => {
     const selection = window.getSelection()
     if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
@@ -804,6 +870,7 @@ function App() {
     const range = selection.getRangeAt(0)
     const wrapper = document.createElement('span')
     wrapper.className = 'tag-text'
+    wrapper.setAttribute('style', buildTemplateInlineStyle('tag'))
 
     try {
       const content = range.extractContents()
@@ -821,12 +888,128 @@ function App() {
 
   const applyHeading = (level: 1 | 2 | 3) => {
     document.execCommand('formatBlock', false, `h${level}`)
+    const key = `heading${level}` as keyof EditorSettings['textStyles']
+    applyTemplateStyleToCurrentBlock(`h${level}`, key)
     onEditorInput()
   }
 
   const applyDefaultTextBlock = () => {
     document.execCommand('formatBlock', false, 'p')
+    applyTemplateStyleToCurrentBlock('p', 'defaultText')
     onEditorInput()
+  }
+
+  // Core routine: apply an inline style wrapper to a specific Range.
+  // Works even when the editor has lost focus (e.g. after the OS color picker closes).
+  const applyStyleToRange = (
+    range: Range,
+    styleUpdater: (span: HTMLSpanElement) => void,
+  ): boolean => {
+    if (range.collapsed) return false
+
+    const container = range.commonAncestorContainer
+    const isInDebate = editorRef.current?.contains(container)
+    const isInSpeech = speechEditorRef.current?.contains(container)
+
+    if (!isInDebate && !isInSpeech) return false
+
+    const wrapper = document.createElement('span')
+    styleUpdater(wrapper)
+
+    try {
+      const content = range.extractContents()
+      wrapper.appendChild(content)
+      range.insertNode(wrapper)
+
+      // Re-select the wrapped content so the user sees it selected.
+      const selection = window.getSelection()
+      if (selection) {
+        selection.removeAllRanges()
+        const postRange = document.createRange()
+        postRange.selectNodeContents(wrapper)
+        selection.addRange(postRange)
+        savedSelectionRef.current = postRange.cloneRange()
+      }
+
+      if (isInDebate) onEditorInput()
+      else onSpeechEditorInput()
+
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  const applyInlineStyleToSelection = (
+    styleUpdater: (span: HTMLSpanElement) => void,
+    emptySelectionMessage: string,
+  ) => {
+    const selection = window.getSelection()
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+      setStatus(emptySelectionMessage)
+      return false
+    }
+    const ok = applyStyleToRange(selection.getRangeAt(0), styleUpdater)
+    if (!ok) setStatus('Unable to apply style to selected text')
+    return ok
+  }
+
+  const applyHighlightColorToSelection = (color: string) =>
+    applyInlineStyleToSelection(
+      (wrapper) => { wrapper.style.backgroundColor = color },
+      'Select text to apply highlight',
+    )
+
+  // Checks whether every text node in the current selection is already covered by
+  // a background-color that matches `color`.  If so, strips the highlight; otherwise applies it.
+  const toggleHighlightOnSelection = (color: string) => {
+    const selection = window.getSelection()
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+      setStatus('Select text to toggle highlight')
+      return
+    }
+
+    const range = selection.getRangeAt(0)
+    const container = range.commonAncestorContainer
+    const inDebate = editorRef.current?.contains(container)
+    const inSpeech = speechEditorRef.current?.contains(container)
+    if (!inDebate && !inSpeech) return
+
+    const normalizedTarget = normalizeCssColor(color)
+
+    // Walk every text node in the selection; if any lacks the highlight, we apply.
+    const walker = document.createTreeWalker(
+      range.commonAncestorContainer.nodeType === Node.TEXT_NODE
+        ? range.commonAncestorContainer.parentElement!
+        : (range.commonAncestorContainer as Element),
+      NodeFilter.SHOW_TEXT,
+    )
+
+    let allHighlighted = true
+    let hasText = false
+    let node = walker.nextNode()
+    while (node) {
+      if (range.intersectsNode(node) && node.textContent?.trim()) {
+        hasText = true
+        const parent = (node as Text).parentElement
+        const bg = parent ? getComputedStyle(parent).backgroundColor.replace(/\s+/g, '') : ''
+        if (bg !== normalizedTarget || bg === 'rgba(0,0,0,0)') {
+          allHighlighted = false
+          break
+        }
+      }
+      node = walker.nextNode()
+    }
+
+    if (!hasText) return
+
+    if (allHighlighted) {
+      applyStyleToRange(range, (wrapper) => { wrapper.style.backgroundColor = 'transparent' })
+      setStatus('Highlight removed')
+    } else {
+      applyStyleToRange(range, (wrapper) => { wrapper.style.backgroundColor = color })
+      setStatus('Highlight applied')
+    }
   }
 
   const applyInlineTextSize = (size: number) => {
@@ -884,7 +1067,7 @@ function App() {
         applyCommand('underline')
         break
       case 'highlight':
-        applyCommand('hiliteColor', activeHighlightColor)
+        toggleHighlightOnSelection(activeHighlightColor)
         break
       case 'boldUnderline':
         applyCommand('bold')
@@ -893,7 +1076,7 @@ function App() {
       case 'boldUnderlineHighlight':
         applyCommand('bold')
         applyCommand('underline')
-        applyCommand('hiliteColor', activeHighlightColor)
+        applyHighlightColorToSelection(activeHighlightColor)
         break
       case 'pasteAsDefaultText':
         void pasteAsDefaultText()
@@ -1567,62 +1750,10 @@ function App() {
           })
         }
       />
-      <style>
-        {`
-          .single-editor {
-            font-family: ${data.settings.defaultFont};
-          }
-
-          .single-editor,
-          .single-editor p,
-          .single-editor div,
-          .single-editor li {
-            font-size: ${data.settings.textStyles.defaultText.fontSize}px;
-            font-weight: ${styleToCss(data.settings.textStyles.defaultText.style).fontWeight};
-            font-style: ${styleToCss(data.settings.textStyles.defaultText.style).fontStyle};
-            text-decoration: ${styleToCss(data.settings.textStyles.defaultText.style).textDecoration};
-            color: ${data.settings.textStyles.defaultText.color};
-          }
-
-          .single-editor h1 {
-            font-size: ${data.settings.textStyles.heading1.fontSize}px;
-            font-weight: ${styleToCss(data.settings.textStyles.heading1.style).fontWeight};
-            font-style: ${styleToCss(data.settings.textStyles.heading1.style).fontStyle};
-            text-decoration: ${styleToCss(data.settings.textStyles.heading1.style).textDecoration};
-            color: ${data.settings.textStyles.heading1.color};
-            text-align: ${data.settings.textStyles.heading1.align};
-          }
-
-          .single-editor h2 {
-            font-size: ${data.settings.textStyles.heading2.fontSize}px;
-            font-weight: ${styleToCss(data.settings.textStyles.heading2.style).fontWeight};
-            font-style: ${styleToCss(data.settings.textStyles.heading2.style).fontStyle};
-            text-decoration: ${styleToCss(data.settings.textStyles.heading2.style).textDecoration};
-            color: ${data.settings.textStyles.heading2.color};
-            text-align: ${data.settings.textStyles.heading2.align};
-          }
-
-          .single-editor h3 {
-            font-size: ${data.settings.textStyles.heading3.fontSize}px;
-            font-weight: ${styleToCss(data.settings.textStyles.heading3.style).fontWeight};
-            font-style: ${styleToCss(data.settings.textStyles.heading3.style).fontStyle};
-            text-decoration: ${styleToCss(data.settings.textStyles.heading3.style).textDecoration};
-            color: ${data.settings.textStyles.heading3.color};
-            text-align: ${data.settings.textStyles.heading3.align};
-          }
-
-          .single-editor .tag-text {
-            font-size: ${data.settings.textStyles.tag.fontSize}px;
-            font-weight: ${styleToCss(data.settings.textStyles.tag.style).fontWeight};
-            font-style: ${styleToCss(data.settings.textStyles.tag.style).fontStyle};
-            text-decoration: ${styleToCss(data.settings.textStyles.tag.style).textDecoration};
-            color: ${data.settings.textStyles.tag.color};
-          }
-        `}
-      </style>
       <div
         ref={editorRef}
         className={`editor single-editor ${invisibilityMode ? 'invisibility' : ''}`}
+        style={{ fontFamily: `${data.settings.defaultFont}, Arial, sans-serif` }}
         contentEditable
         suppressContentEditableWarning
         onFocus={() => setActiveEditorTarget('debate')}
@@ -1701,6 +1832,8 @@ function App() {
         {leftPanelView === 'settings' ? (
           <div className="settings-panel">
             <h3>Settings</h3>
+            <h4 className="settings-section-title">New Document Template</h4>
+            <p className="settings-section-desc">These settings are applied when creating a new document. They do not affect existing documents.</p>
             <div className="settings-group">
               <label className="settings-row">
                 <span>Default text font</span>
@@ -1827,6 +1960,7 @@ function App() {
                 </div>
               </div>
             ))}
+            <h4 className="settings-section-title">Keyboard Shortcuts</h4>
             <div className="settings-group">
               <h4>Keyboard Shortcuts</h4>
               <p className="hint">
@@ -2029,9 +2163,14 @@ function App() {
               <input
                 type="color"
                 value={activeTextColor}
+                onPointerDown={saveCurrentSelection}
                 onChange={(event) => {
-                  setActiveTextColor(event.target.value)
-                  applyCommand('foreColor', event.target.value)
+                  const color = event.target.value
+                  setActiveTextColor(color)
+                  const saved = savedSelectionRef.current
+                  if (saved && !saved.collapsed) {
+                    applyStyleToRange(saved, (span) => { span.style.color = color })
+                  }
                 }}
               />
             </label>
@@ -2039,10 +2178,16 @@ function App() {
               <span>Text Size</span>
               <select
                 value={activeTextSize}
+                onMouseDown={saveCurrentSelection}
                 onChange={(event) => {
                   const nextSize = Number(event.target.value)
                   setActiveTextSize(nextSize)
-                  applyInlineTextSize(nextSize)
+                  const saved = savedSelectionRef.current
+                  if (saved && !saved.collapsed) {
+                    applyStyleToRange(saved, (span) => { span.style.fontSize = `${nextSize}px` })
+                  } else {
+                    applyInlineTextSize(nextSize)
+                  }
                 }}
               >
                 {[10, 11, 12, 13, 14, 15, 16, 18, 20, 24, 28, 32, 36, 40].map(
@@ -2054,15 +2199,21 @@ function App() {
                 )}
               </select>
             </label>
-            <button type="button" onClick={() => applyCommand('bold')}>
+            <button
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); applyCommand('bold') }}
+            >
               Bold
             </button>
-            <button type="button" onClick={() => applyCommand('underline')}>
+            <button
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); applyCommand('underline') }}
+            >
               Underline
             </button>
             <button
               type="button"
-              onClick={() => applyCommand('hiliteColor', activeHighlightColor)}
+              onMouseDown={(e) => { e.preventDefault(); toggleHighlightOnSelection(activeHighlightColor) }}
             >
               Highlight
             </button>
@@ -2071,10 +2222,21 @@ function App() {
               <input
                 type="color"
                 value={activeHighlightColor}
-                onChange={(event) => setActiveHighlightColor(event.target.value)}
+                onPointerDown={saveCurrentSelection}
+                onChange={(event) => {
+                  const color = event.target.value
+                  setActiveHighlightColor(color)
+                  const saved = savedSelectionRef.current
+                  if (saved && !saved.collapsed) {
+                    applyStyleToRange(saved, (span) => { span.style.backgroundColor = color })
+                  }
+                }}
               />
             </label>
-            <button type="button" onClick={condenseSelection}>
+            <button
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); condenseSelection() }}
+            >
               Condense
             </button>
             <button type="button" onClick={() => setIsShortcutsDialogOpen(true)}>
@@ -2107,59 +2269,6 @@ function App() {
             </button>
           </div>
         </header>
-        <style>
-          {`
-            .single-editor {
-              font-family: ${data.settings.defaultFont};
-            }
-
-            .single-editor,
-            .single-editor p,
-            .single-editor div,
-            .single-editor li {
-              font-size: ${data.settings.textStyles.defaultText.fontSize}px;
-              font-weight: ${styleToCss(data.settings.textStyles.defaultText.style).fontWeight};
-              font-style: ${styleToCss(data.settings.textStyles.defaultText.style).fontStyle};
-              text-decoration: ${styleToCss(data.settings.textStyles.defaultText.style).textDecoration};
-              color: ${data.settings.textStyles.defaultText.color};
-            }
-
-            .single-editor h1 {
-              font-size: ${data.settings.textStyles.heading1.fontSize}px;
-              font-weight: ${styleToCss(data.settings.textStyles.heading1.style).fontWeight};
-              font-style: ${styleToCss(data.settings.textStyles.heading1.style).fontStyle};
-              text-decoration: ${styleToCss(data.settings.textStyles.heading1.style).textDecoration};
-              color: ${data.settings.textStyles.heading1.color};
-              text-align: ${data.settings.textStyles.heading1.align};
-            }
-
-            .single-editor h2 {
-              font-size: ${data.settings.textStyles.heading2.fontSize}px;
-              font-weight: ${styleToCss(data.settings.textStyles.heading2.style).fontWeight};
-              font-style: ${styleToCss(data.settings.textStyles.heading2.style).fontStyle};
-              text-decoration: ${styleToCss(data.settings.textStyles.heading2.style).textDecoration};
-              color: ${data.settings.textStyles.heading2.color};
-              text-align: ${data.settings.textStyles.heading2.align};
-            }
-
-            .single-editor h3 {
-              font-size: ${data.settings.textStyles.heading3.fontSize}px;
-              font-weight: ${styleToCss(data.settings.textStyles.heading3.style).fontWeight};
-              font-style: ${styleToCss(data.settings.textStyles.heading3.style).fontStyle};
-              text-decoration: ${styleToCss(data.settings.textStyles.heading3.style).textDecoration};
-              color: ${data.settings.textStyles.heading3.color};
-              text-align: ${data.settings.textStyles.heading3.align};
-            }
-
-            .single-editor .tag-text {
-              font-size: ${data.settings.textStyles.tag.fontSize}px;
-              font-weight: ${styleToCss(data.settings.textStyles.tag.style).fontWeight};
-              font-style: ${styleToCss(data.settings.textStyles.tag.style).fontStyle};
-              text-decoration: ${styleToCss(data.settings.textStyles.tag.style).textDecoration};
-              color: ${data.settings.textStyles.tag.color};
-            }
-          `}
-        </style>
         {data.activeTab === null ? (
           <div className="empty-workspace">
             <div className="debatefiles-icon">📁</div>

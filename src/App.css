@@ -302,6 +302,25 @@ button:disabled {
   box-sizing: border-box;
 }
 
+.settings-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-h);
+  margin: 16px 0 4px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-section-desc {
+  font-size: 11px;
+  color: var(--text);
+  opacity: 0.65;
+  margin: 0 0 8px;
+  line-height: 1.4;
+}
+
 .settings-group {
   border: 1px solid var(--border);
   border-radius: 8px;
