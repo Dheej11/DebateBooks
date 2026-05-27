@@ -436,6 +436,7 @@ function App() {
   const [activeHighlightColor, setActiveHighlightColor] = useState('#fff59d')
   const [draggingDocId, setDraggingDocId] = useState<string | null>(null)
   const [dropTargetFolderId, setDropTargetFolderId] = useState<string | null>(null)
+  const [collapsedFolderIds, setCollapsedFolderIds] = useState<string[]>([])
   const [activeContextDocId, setActiveContextDocId] = useState<string | null>(null)
   const [contextMenuPosition, setContextMenuPosition] = useState<{
     x: number
@@ -890,6 +891,14 @@ function App() {
     setDropTargetFolderId(null)
   }
 
+  const toggleFolderCollapsed = (folderId: string) => {
+    setCollapsedFolderIds((previous) =>
+      previous.includes(folderId)
+        ? previous.filter((id) => id !== folderId)
+        : [...previous, folderId],
+    )
+  }
+
   const onEditorKeyDown: KeyboardEventHandler<HTMLDivElement> = (event) => {
     for (const group of shortcutGroups) {
       const shortcut = data.settings.shortcuts[group.key]
@@ -1195,32 +1204,48 @@ function App() {
                   onFolderDrop(folder.id)
                 }}
               >
-                <strong>{folder.name}</strong>
-                {(docsByFolder.get(folder.id) ?? []).map((doc) => (
+                <div className="folder-header">
+                  <strong>{folder.name}</strong>
                   <button
-                    key={doc.id}
                     type="button"
-                    draggable
-                    onDragStart={() => setDraggingDocId(doc.id)}
-                    onDragEnd={() => {
-                      setDraggingDocId(null)
-                      setDropTargetFolderId(null)
-                    }}
-                    onContextMenu={(event) => onDocContextMenu(event, doc.id)}
-                    className={`doc-button ${
-                      doc.id === data.activeDebateDocId ? 'doc-button-active' : ''
-                    }`}
-                    onClick={() =>
-                      setData((previous) => ({
-                        ...previous,
-                        activeDebateDocId: doc.id,
-                      }))
+                    className="folder-toggle-button"
+                    aria-label={
+                      collapsedFolderIds.includes(folder.id)
+                        ? 'Expand folder'
+                        : 'Minimize folder'
                     }
+                    onClick={() => toggleFolderCollapsed(folder.id)}
                   >
-                    <span>{doc.title}</span>
-                    <small>Updated {formatDate(doc.updatedAt)}</small>
+                    {collapsedFolderIds.includes(folder.id) ? '▶' : '▼'}
                   </button>
-                ))}
+                </div>
+                {!collapsedFolderIds.includes(folder.id)
+                  ? (docsByFolder.get(folder.id) ?? []).map((doc) => (
+                      <button
+                        key={doc.id}
+                        type="button"
+                        draggable
+                        onDragStart={() => setDraggingDocId(doc.id)}
+                        onDragEnd={() => {
+                          setDraggingDocId(null)
+                          setDropTargetFolderId(null)
+                        }}
+                        onContextMenu={(event) => onDocContextMenu(event, doc.id)}
+                        className={`doc-button ${
+                          doc.id === data.activeDebateDocId ? 'doc-button-active' : ''
+                        }`}
+                        onClick={() =>
+                          setData((previous) => ({
+                            ...previous,
+                            activeDebateDocId: doc.id,
+                          }))
+                        }
+                      >
+                        <span>{doc.title}</span>
+                        <small>Updated {formatDate(doc.updatedAt)}</small>
+                      </button>
+                    ))
+                  : null}
               </div>
             ))}
             <p className="hint">

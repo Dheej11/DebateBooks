@@ -110,6 +110,18 @@ button:disabled {
   background: var(--accent-bg);
 }
 
+.folder-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.folder-toggle-button {
+  font-size: 11px;
+  padding: 4px 8px;
+}
+
 .doc-button,
 .tree-node {
   display: flex;
