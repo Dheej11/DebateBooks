@@ -164,6 +164,35 @@ const colorChoices = [
   '#b91c1c',
 ]
 
+const textColorOptions: Array<{ label: string; value: string }> = [
+  { label: 'Default (Black)', value: '#111827' },
+  { label: 'Dark Gray', value: '#374151' },
+  { label: 'Gray', value: '#6b7280' },
+  { label: 'White', value: '#ffffff' },
+  { label: 'Blue', value: '#1d4ed8' },
+  { label: 'Dark Blue', value: '#1e3a8a' },
+  { label: 'Red', value: '#b91c1c' },
+  { label: 'Dark Red', value: '#7c2d12' },
+  { label: 'Green', value: '#16a34a' },
+  { label: 'Dark Green', value: '#166534' },
+  { label: 'Purple', value: '#7c3aed' },
+  { label: 'Dark Purple', value: '#6b21a8' },
+  { label: 'Orange', value: '#ea580c' },
+  { label: 'Brown', value: '#92400e' },
+]
+
+const highlightColorOptions: Array<{ label: string; value: string }> = [
+  { label: 'Yellow', value: '#fef08a' },
+  { label: 'Green', value: '#bbf7d0' },
+  { label: 'Blue', value: '#bfdbfe' },
+  { label: 'Pink', value: '#fbcfe8' },
+  { label: 'Orange', value: '#fed7aa' },
+  { label: 'Purple', value: '#ddd6fe' },
+  { label: 'Red', value: '#fecaca' },
+  { label: 'Cyan', value: '#a5f3fc' },
+  { label: 'None', value: 'transparent' },
+]
+
 const styleToCss = (preset: FontStylePreset) => {
   switch (preset) {
     case 'bold':
@@ -1814,7 +1843,14 @@ function App() {
     >
       <aside className="panel left-panel">
         <div className="panel-header">
-          <h2>Debate Files</h2>
+          <div className="panel-brand">
+            <img
+              src="/debate-files-logo.jpeg"
+              alt="DebateFiles logo"
+              className="panel-logo"
+            />
+            <h2>Debate Files</h2>
+          </div>
           <button
             type="button"
             className="icon-button"
@@ -2158,21 +2194,32 @@ function App() {
         ) : null}
         <header className="editor-toolbar">
           <div className="row">
-            <label className="toolbar-color-control toolbar-color-control-primary">
+            <label className="toolbar-color-control">
               <span>Text Color</span>
-              <input
-                type="color"
-                value={activeTextColor}
-                onPointerDown={saveCurrentSelection}
-                onChange={(event) => {
-                  const color = event.target.value
-                  setActiveTextColor(color)
-                  const saved = savedSelectionRef.current
-                  if (saved && !saved.collapsed) {
-                    applyStyleToRange(saved, (span) => { span.style.color = color })
-                  }
-                }}
-              />
+              <div className="toolbar-color-select-wrap">
+                <span
+                  className="toolbar-color-dot"
+                  style={{ background: activeTextColor }}
+                />
+                <select
+                  value={activeTextColor}
+                  onMouseDown={saveCurrentSelection}
+                  onChange={(event) => {
+                    const color = event.target.value
+                    setActiveTextColor(color)
+                    const saved = savedSelectionRef.current
+                    if (saved && !saved.collapsed) {
+                      applyStyleToRange(saved, (span) => { span.style.color = color })
+                    }
+                  }}
+                >
+                  {textColorOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </label>
             <label className="toolbar-size-control">
               <span>Text Size</span>
@@ -2217,21 +2264,32 @@ function App() {
             >
               Highlight
             </button>
-            <label className="toolbar-color-swatch" title="Highlight color">
-              <span className="sr-only">Highlight color</span>
-              <input
-                type="color"
-                value={activeHighlightColor}
-                onPointerDown={saveCurrentSelection}
-                onChange={(event) => {
-                  const color = event.target.value
-                  setActiveHighlightColor(color)
-                  const saved = savedSelectionRef.current
-                  if (saved && !saved.collapsed) {
-                    applyStyleToRange(saved, (span) => { span.style.backgroundColor = color })
-                  }
-                }}
-              />
+            <label className="toolbar-color-control">
+              <span>Highlight Color</span>
+              <div className="toolbar-color-select-wrap">
+                <span
+                  className="toolbar-color-dot"
+                  style={{ background: activeHighlightColor === 'transparent' ? 'repeating-linear-gradient(45deg,#ccc 0,#ccc 3px,#fff 3px,#fff 6px)' : activeHighlightColor }}
+                />
+                <select
+                  value={activeHighlightColor}
+                  onMouseDown={saveCurrentSelection}
+                  onChange={(event) => {
+                    const color = event.target.value
+                    setActiveHighlightColor(color)
+                    const saved = savedSelectionRef.current
+                    if (saved && !saved.collapsed) {
+                      applyStyleToRange(saved, (span) => { span.style.backgroundColor = color })
+                    }
+                  }}
+                >
+                  {highlightColorOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </label>
             <button
               type="button"

@@ -49,6 +49,30 @@
   margin-bottom: 10px;
 }
 
+.panel-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.panel-brand h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.panel-logo {
+  height: 32px;
+  width: auto;
+  object-fit: contain;
+  border-radius: 5px;
+  flex-shrink: 0;
+}
+
 .icon-button {
   width: 34px;
   height: 34px;
@@ -427,31 +451,29 @@ button:disabled {
   color: var(--text-h);
 }
 
-.toolbar-color-control-primary {
-  margin-right: 2px;
-}
-
-.toolbar-color-control input[type='color'] {
-  width: 26px;
-  height: 22px;
-  padding: 0;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg);
-}
-
-.toolbar-color-swatch {
+.toolbar-color-select-wrap {
   display: inline-flex;
   align-items: center;
+  gap: 5px;
 }
 
-.toolbar-color-swatch input[type='color'] {
-  width: 30px;
-  height: 28px;
-  padding: 0;
+.toolbar-color-dot {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
   border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg);
+  flex-shrink: 0;
+}
+
+.toolbar-color-control select {
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  color: var(--text);
+  cursor: pointer;
+  outline: none;
+  padding: 0;
 }
 
 .toolbar-size-control {
