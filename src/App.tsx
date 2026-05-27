@@ -234,14 +234,6 @@ const styleToCss = (preset: FontStylePreset) => {
   }
 }
 
-const normalizeCssColor = (value: string) => {
-  const probe = document.createElement('span')
-  probe.style.color = value
-  document.body.appendChild(probe)
-  const normalized = getComputedStyle(probe).color
-  document.body.removeChild(probe)
-  return normalized.replace(/\s+/g, '')
-}
 
 const textStyleGroups: Array<{
   key: keyof EditorSettings['textStyles']
@@ -989,8 +981,11 @@ function App() {
       'Select text to apply highlight',
     )
 
-  // Checks whether every text node in the current selection is already covered by
-  // a background-color that matches `color`.  If so, strips the highlight; otherwise applies it.
+  // Toggle highlight on the current selection.
+  // Detection is done by finding spans with inline background-color that intersect the
+  // range, then checking if every text node in the range is covered by one of those spans.
+  // Removal clears background-color directly on those spans — never wraps with "transparent"
+  // (which would sit inside the colored span and have no visual effect).
   const toggleHighlightOnSelection = (color: string) => {
     const selection = window.getSelection()
     if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
@@ -1000,30 +995,41 @@ function App() {
 
     const range = selection.getRangeAt(0)
     const container = range.commonAncestorContainer
-    const inDebate = editorRef.current?.contains(container)
-    const inSpeech = speechEditorRef.current?.contains(container)
-    if (!inDebate && !inSpeech) return
+    const editorEl = editorRef.current?.contains(container)
+      ? editorRef.current
+      : speechEditorRef.current?.contains(container)
+        ? speechEditorRef.current
+        : null
+    if (!editorEl) return
 
-    const normalizedTarget = normalizeCssColor(color)
-
-    // Walk every text node in the selection; if any lacks the highlight, we apply.
-    const walker = document.createTreeWalker(
-      range.commonAncestorContainer.nodeType === Node.TEXT_NODE
-        ? range.commonAncestorContainer.parentElement!
-        : (range.commonAncestorContainer as Element),
-      NodeFilter.SHOW_TEXT,
+    // Collect every span with an inline background-color that overlaps the selection.
+    const highlightSpans = Array.from(
+      editorEl.querySelectorAll<HTMLSpanElement>('span[style]'),
+    ).filter(
+      (span) =>
+        span.style.backgroundColor &&
+        span.style.backgroundColor !== 'transparent' &&
+        range.intersectsNode(span),
     )
 
-    let allHighlighted = true
+    // Walk every text node in the range. If all are contained inside one of the
+    // highlight spans, treat the selection as "all highlighted".
+    const walkerRoot =
+      container.nodeType === Node.TEXT_NODE
+        ? (container.parentElement ?? editorEl)
+        : (container as Element)
+
+    const walker = document.createTreeWalker(walkerRoot, NodeFilter.SHOW_TEXT)
+    let allCovered = highlightSpans.length > 0
     let hasText = false
+
     let node = walker.nextNode()
     while (node) {
       if (range.intersectsNode(node) && node.textContent?.trim()) {
         hasText = true
-        const parent = (node as Text).parentElement
-        const bg = parent ? getComputedStyle(parent).backgroundColor.replace(/\s+/g, '') : ''
-        if (bg !== normalizedTarget || bg === 'rgba(0,0,0,0)') {
-          allHighlighted = false
+        const coveredBySpan = highlightSpans.some((span) => span.contains(node))
+        if (!coveredBySpan) {
+          allCovered = false
           break
         }
       }
@@ -1032,11 +1038,21 @@ function App() {
 
     if (!hasText) return
 
-    if (allHighlighted) {
-      applyStyleToRange(range, (wrapper) => { wrapper.style.backgroundColor = 'transparent' })
+    if (allCovered) {
+      // Remove: clear background-color directly from the spans.
+      for (const span of highlightSpans) {
+        span.style.backgroundColor = ''
+        if (!span.style.cssText.trim() && !span.className) {
+          span.replaceWith(...Array.from(span.childNodes))
+        }
+      }
+      if (editorEl === editorRef.current) onEditorInput()
+      else onSpeechEditorInput()
       setStatus('Highlight removed')
     } else {
-      applyStyleToRange(range, (wrapper) => { wrapper.style.backgroundColor = color })
+      applyStyleToRange(range, (wrapper) => {
+        wrapper.style.backgroundColor = color
+      })
       setStatus('Highlight applied')
     }
   }
