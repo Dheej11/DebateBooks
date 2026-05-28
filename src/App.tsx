@@ -2538,7 +2538,20 @@ function App() {
                     : ''
               }`}
               onClick={() => {
+                // Determine which debate doc should anchor the split.
+                // Prefer whichever debate tab is currently active; fall back to
+                // the most recently opened debate tab in openTabs.
+                const currentDebateId =
+                  data.activeTab?.type === 'debate'
+                    ? data.activeTab.id
+                    : [...data.openTabs].reverse().find((t) => t.type === 'debate')?.id ?? null
+
+                if (currentDebateId && currentDebateId !== data.activeDebateDocId) {
+                  setData((prev) => ({ ...prev, activeDebateDocId: currentDebateId }))
+                }
+
                 openSpeechTab(doc.id)
+
                 const hasOpenDebateTab = data.openTabs.some((tab) => tab.type === 'debate')
                 if (hasOpenDebateTab) {
                   setIsSplitView(true)
