@@ -119,10 +119,10 @@ const defaultSettings: EditorSettings = {
   defaultFont: 'Arial',
   textStyles: {
     defaultText: { fontSize: 15, style: 'normal', color: '', align: 'left' },
-    tag: { fontSize: 16, style: 'bold', color: '#6b21a8', align: 'left' },
-    heading1: { fontSize: 34, style: 'bold', color: '#0f172a', align: 'left' },
-    heading2: { fontSize: 26, style: 'bold', color: '#1f2937', align: 'left' },
-    heading3: { fontSize: 20, style: 'bold', color: '#374151', align: 'left' },
+    tag:      { fontSize: 16, style: 'bold', color: '#111827', align: 'left' },
+    heading1: { fontSize: 34, style: 'bold', color: '#111827', align: 'left' },
+    heading2: { fontSize: 26, style: 'bold', color: '#111827', align: 'left' },
+    heading3: { fontSize: 20, style: 'bold', color: '#111827', align: 'left' },
   },
   defaultHighlightColor: '#fff59d',
   shortcuts: {
