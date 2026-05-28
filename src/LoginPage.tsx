@@ -14,7 +14,7 @@ export default function LoginPage() {
     setLoading(true)
     try {
       await signInWithGoogle()
-      navigate('/app')
+      navigate('/')
     } catch (err: unknown) {
       const code = (err as { code?: string })?.code ?? ''
       const msg = (err as { message?: string })?.message ?? ''
