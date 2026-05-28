@@ -2436,6 +2436,10 @@ function App() {
             </button>
           </div>
         )}
+        <div className={`sync-status ${status.includes('cloud ☁') ? 'sync-status-cloud' : status.includes('locally') ? 'sync-status-local' : 'sync-status-idle'}`}>
+          <span className="sync-status-dot" />
+          <span className="sync-status-text">{status}</span>
+        </div>
         <h2>Speech Docs</h2>
         <div className="row">
           <button type="button" onClick={createSpeechDoc}>
@@ -2482,10 +2486,6 @@ function App() {
               </small>
             </button>
           ))}
-        </div>
-        <div className={`sync-status ${status.includes('cloud ☁') ? 'sync-status-cloud' : status.includes('locally') ? 'sync-status-local' : 'sync-status-idle'}`}>
-          <span className="sync-status-dot" />
-          <span className="sync-status-text">{status}</span>
         </div>
       </aside>
       {isShortcutsDialogOpen ? (
