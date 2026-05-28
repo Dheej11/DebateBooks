@@ -15,9 +15,19 @@ export default function LoginPage() {
     try {
       await signInWithGoogle()
       navigate('/app')
-    } catch (err) {
-      setError('Sign-in failed. Please try again.')
-      console.error(err)
+    } catch (err: unknown) {
+      const code = (err as { code?: string })?.code ?? ''
+      const msg = (err as { message?: string })?.message ?? ''
+      if (code === 'auth/unauthorized-domain') {
+        setError('This domain is not authorized in Firebase. Add it under Authentication → Settings → Authorized Domains.')
+      } else if (code === 'auth/popup-blocked') {
+        setError('Popup was blocked by the browser. Please allow popups for this site.')
+      } else if (code === 'auth/popup-closed-by-user') {
+        setError('Sign-in popup was closed. Please try again.')
+      } else {
+        setError(`Sign-in failed: ${code || msg || 'unknown error'}`)
+      }
+      console.error('Google sign-in error:', code, msg, err)
     } finally {
       setLoading(false)
     }
