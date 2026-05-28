@@ -4,7 +4,17 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>debatefiles</title>
+    <title>DebateFiles</title>
+    <script>
+      // Apply saved theme before first paint to avoid flash
+      try {
+        var saved = JSON.parse(localStorage.getItem('debatefiles.v1') || '{}')
+        var theme = saved.settings?.theme || (saved.settings?.darkMode === false ? 'light' : 'dark')
+        document.documentElement.setAttribute('data-theme', theme)
+      } catch (e) {
+        document.documentElement.setAttribute('data-theme', 'dark')
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
