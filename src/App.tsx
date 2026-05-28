@@ -105,6 +105,15 @@ interface EditorSettings {
   shortcuts: Record<ShortcutAction, string>
 }
 
+const appThemes: Array<{ id: string; label: string }> = [
+  { id: 'dark',     label: 'Dark'           },
+  { id: 'midnight', label: 'Midnight'       },
+  { id: 'slate',    label: 'Slate'          },
+  { id: 'forest',   label: 'Forest'         },
+  { id: 'light',    label: 'Light'          },
+  { id: 'sepia',    label: 'Sepia'          },
+  { id: 'classic',  label: 'Debate Classic' },
+]
 
 const defaultSettings: EditorSettings = {
   theme: 'dark',

@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from './AuthContext'
 import './Landing.css'
 
 const features = [

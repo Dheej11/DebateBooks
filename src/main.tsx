@@ -6,6 +6,7 @@ import { AuthProvider } from './AuthContext'
 import ProtectedRoute from './ProtectedRoute'
 import App from './App.tsx'
 import Landing from './Landing.tsx'
+import LoginPage from './LoginPage.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
