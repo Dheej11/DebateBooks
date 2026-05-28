@@ -1908,24 +1908,6 @@ function App() {
             </button>
           </div>
         </div>
-        {user && (
-          <div className="user-bar">
-            {user.photoURL && (
-              <img src={user.photoURL} alt={user.displayName ?? 'User'} className="user-avatar" referrerPolicy="no-referrer" />
-            )}
-            <span className="user-name" title={user.email ?? ''}>
-              {user.displayName ?? user.email}
-            </span>
-            <button
-              type="button"
-              className="user-signout"
-              title="Sign out"
-              onClick={() => void signOut()}
-            >
-              Sign out
-            </button>
-          </div>
-        )}
         {leftPanelView === 'settings' ? (
           <div className="settings-panel">
             <h3>Settings</h3>
@@ -2419,6 +2401,24 @@ function App() {
       </section>
 
       <aside className="panel">
+        {user && (
+          <div className="user-bar">
+            {user.photoURL && (
+              <img src={user.photoURL} alt={user.displayName ?? 'User'} className="user-avatar" referrerPolicy="no-referrer" />
+            )}
+            <span className="user-name" title={user.email ?? ''}>
+              {user.displayName ?? user.email}
+            </span>
+            <button
+              type="button"
+              className="user-signout"
+              title="Sign out"
+              onClick={() => void signOut()}
+            >
+              Sign out
+            </button>
+          </div>
+        )}
         <h2>Speech Docs</h2>
         <div className="row">
           <button type="button" onClick={createSpeechDoc}>
