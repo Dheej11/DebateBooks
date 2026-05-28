@@ -63,6 +63,16 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: opacity 0.15s;
+}
+
+.panel-brand:hover {
+  opacity: 0.75;
 }
 
 .user-bar {

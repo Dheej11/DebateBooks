@@ -12,6 +12,7 @@ import {
   useState,
 } from 'react'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { useNavigate } from 'react-router-dom'
 import { db } from './firebase'
 import { useAuth } from './AuthContext'
 import './App.css'
@@ -470,6 +471,7 @@ function parseAppData(raw: unknown): AppData {
 
 function App() {
   const { user, signOut } = useAuth()
+  const navigate = useNavigate()
   const [data, setData] = useState<AppData>(defaultData)
   const [dataLoading, setDataLoading] = useState(true)
 
@@ -1901,14 +1903,19 @@ function App() {
     >
       <aside className="panel left-panel">
         <div className="panel-header">
-          <div className="panel-brand">
+          <button
+            type="button"
+            className="panel-brand"
+            onClick={() => navigate('/')}
+            title="Go to home page"
+          >
             <img
               src="/debate-files-logo.jpeg"
               alt="DebateFiles logo"
               className="panel-logo"
             />
             <h2>Debate Files</h2>
-          </div>
+          </button>
           <div className="panel-header-actions">
             <button
               type="button"
