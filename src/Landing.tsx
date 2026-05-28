@@ -208,8 +208,8 @@ export default function Landing() {
 
       {/* CTA Banner */}
       <section className="landing-cta-section">
-        <h2>Ready to cut your first card?</h2>
-        <p>Sign in with Google and start in seconds. Free forever.</p>
+        <h2>{user ? 'Welcome back!' : 'Ready to cut your first card?'}</h2>
+        <p>{user ? 'Your files are waiting. Jump back in whenever you\'re ready.' : 'Sign in with Google and start in seconds. Free forever.'}</p>
         <button className="landing-cta-primary landing-cta-large" onClick={handleCta} disabled={signingIn}>
           {signingIn ? 'Signing in…' : user ? 'Open DebateFiles →' : 'Sign in with Google →'}
         </button>
