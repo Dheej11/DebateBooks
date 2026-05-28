@@ -1,7 +1,6 @@
 import {
   type ChangeEventHandler,
   type CSSProperties,
-  type KeyboardEvent,
   type KeyboardEventHandler,
   type ReactElement,
   type MouseEvent as ReactMouseEvent,
@@ -357,8 +356,10 @@ const parseShortcut = (value: string): ParsedShortcut | null => {
   return parsed.key ? parsed : null
 }
 
+type AnyKeyEvent = { key: string; metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey: boolean }
+
 const matchesShortcut = (
-  event: KeyboardEvent<HTMLDivElement>,
+  event: AnyKeyEvent,
   shortcut: string,
 ) => {
   const parsed = parseShortcut(shortcut)
@@ -724,16 +725,36 @@ function App() {
     return () => window.removeEventListener('click', dismissContextMenu)
   }, [])
 
+  // Keep a stable ref to runShortcutAction so the capture listener never goes stale.
+  const runShortcutActionRef = useRef<((action: ShortcutAction) => void) | null>(null)
+
+  // Capture-phase global listener — fires before any browser shortcut handling.
+  // This lets custom shortcuts (e.g. Mod+1) override browser tab-switching, etc.
   useEffect(() => {
-    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+    const shortcuts = data.settings.shortcuts
+    const onKeyDownCapture = (event: globalThis.KeyboardEvent) => {
       if (event.key === 'Escape') {
         setIsShortcutsDialogOpen(false)
+        return
+      }
+      // Only intercept when focus is inside the app (not browser chrome)
+      const target = event.target as Element | null
+      const insideApp = target && document.getElementById('root')?.contains(target)
+      if (!insideApp) return
+
+      for (const group of shortcutGroups) {
+        if (matchesShortcut(event, shortcuts[group.key])) {
+          event.preventDefault()
+          runShortcutActionRef.current?.(group.key)
+          break
+        }
       }
     }
 
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [])
+    // capture: true makes this fire before the browser acts on the key
+    window.addEventListener('keydown', onKeyDownCapture, { capture: true })
+    return () => window.removeEventListener('keydown', onKeyDownCapture, { capture: true })
+  }, [data.settings.shortcuts])
 
   useEffect(() => {
     const clear = () => clearDragState()
@@ -1201,6 +1222,9 @@ function App() {
         break
     }
   }
+
+  // Keep the capture-phase listener in sync with the latest runShortcutAction closure.
+  runShortcutActionRef.current = runShortcutAction
 
   const sendToSpeech = () => {
     const sourceEditor =
