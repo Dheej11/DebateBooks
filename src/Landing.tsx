@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from './AuthContext'
 import './Landing.css'
@@ -52,9 +53,25 @@ const shortcuts = [
 
 export default function Landing() {
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { user, signInWithGoogle } = useAuth()
+  const [signingIn, setSigningIn] = useState(false)
+  const [signInError, setSignInError] = useState<string | null>(null)
 
-  const handleCta = () => navigate(user ? '/app' : '/login')
+  const handleSignIn = async () => {
+    if (user) { navigate('/app'); return }
+    setSigningIn(true)
+    setSignInError(null)
+    try {
+      await signInWithGoogle()
+      // stays on landing page — auth state updates nav automatically
+    } catch {
+      setSignInError('Sign-in failed. Please try again.')
+    } finally {
+      setSigningIn(false)
+    }
+  }
+
+  const handleCta = () => { if (user) { navigate('/app') } else { void handleSignIn() } }
 
   return (
     <div className="landing">
@@ -71,10 +88,10 @@ export default function Landing() {
             </button>
           ) : (
             <>
-              <button className="landing-nav-signin" onClick={() => navigate('/login')}>
-                Sign in
+              <button className="landing-nav-signin" onClick={handleSignIn} disabled={signingIn}>
+                {signingIn ? 'Signing in…' : 'Sign in'}
               </button>
-              <button className="landing-nav-cta" onClick={() => navigate('/login')}>
+              <button className="landing-nav-cta" onClick={handleSignIn} disabled={signingIn}>
                 Get Started
               </button>
             </>
@@ -97,13 +114,14 @@ export default function Landing() {
             speech docs — all in one place, synced to your Google account.
           </p>
           <div className="landing-hero-actions">
-            <button className="landing-cta-primary" onClick={handleCta}>
-              {user ? 'Open App →' : 'Start for Free →'}
+            <button className="landing-cta-primary" onClick={handleCta} disabled={signingIn}>
+              {signingIn ? 'Signing in…' : user ? 'Open App →' : 'Start for Free →'}
             </button>
             <a className="landing-cta-secondary" href="#features">
               See Features
             </a>
           </div>
+          {signInError && <p className="landing-signin-error">{signInError}</p>}
         </div>
         <div className="landing-hero-preview">
           <div className="landing-preview-window">
@@ -177,8 +195,8 @@ export default function Landing() {
       <section className="landing-cta-section">
         <h2>Ready to cut your first card?</h2>
         <p>Sign in with Google and start in seconds. Free forever.</p>
-        <button className="landing-cta-primary landing-cta-large" onClick={handleCta}>
-          {user ? 'Open DebateFiles →' : 'Sign in with Google →'}
+        <button className="landing-cta-primary landing-cta-large" onClick={handleCta} disabled={signingIn}>
+          {signingIn ? 'Signing in…' : user ? 'Open DebateFiles →' : 'Sign in with Google →'}
         </button>
       </section>
 

@@ -431,3 +431,16 @@
 @media (max-width: 560px) {
   .landing-shortcuts-grid { grid-template-columns: 1fr; }
 }
+
+.landing-signin-error {
+  margin-top: 12px;
+  font-size: 13px;
+  color: #f87171;
+}
+
+.landing-nav-signin:disabled,
+.landing-nav-cta:disabled,
+.landing-cta-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
