@@ -53,7 +53,7 @@ const shortcuts = [
 
 export default function Landing() {
   const navigate = useNavigate()
-  const { user, signInWithGoogle } = useAuth()
+  const { user, signInWithGoogle, signOut } = useAuth()
   const [signingIn, setSigningIn] = useState(false)
   const [signInError, setSignInError] = useState<string | null>(null)
 
@@ -83,9 +83,24 @@ export default function Landing() {
         </div>
         <div className="landing-nav-right">
           {user ? (
-            <button className="landing-nav-cta" onClick={() => navigate('/app')}>
-              Open App
-            </button>
+            <div className="landing-user-bar">
+              {user.photoURL
+                ? <img src={user.photoURL} alt={user.displayName ?? 'User'} className="landing-user-avatar" referrerPolicy="no-referrer" />
+                : <div className="landing-user-avatar landing-user-avatar-fallback">
+                    {(user.displayName ?? user.email ?? 'U')[0].toUpperCase()}
+                  </div>
+              }
+              <div className="landing-user-info">
+                <span className="landing-user-name">{user.displayName ?? user.email}</span>
+                <span className="landing-user-email">{user.email}</span>
+              </div>
+              <button className="landing-nav-cta" onClick={() => navigate('/app')}>
+                Open App
+              </button>
+              <button className="landing-nav-signout" onClick={() => void signOut()}>
+                Sign out
+              </button>
+            </div>
           ) : (
             <>
               <button className="landing-nav-signin" onClick={handleSignIn} disabled={signingIn}>

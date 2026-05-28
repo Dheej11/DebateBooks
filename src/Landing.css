@@ -53,6 +53,67 @@
   background: #2563eb;
 }
 
+/* Signed-in user bar */
+.landing-user-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.landing-user-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(59,130,246,0.4);
+  flex-shrink: 0;
+}
+
+.landing-user-avatar-fallback {
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.landing-user-info {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.landing-user-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #f1f5f9;
+}
+
+.landing-user-email {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.landing-nav-signout {
+  background: transparent;
+  color: #64748b;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  font-family: inherit;
+}
+
+.landing-nav-signout:hover {
+  color: #94a3b8;
+  border-color: rgba(255,255,255,0.2);
+}
+
 /* Hero */
 .landing-hero {
   display: grid;
