@@ -2194,6 +2194,9 @@ function App() {
                 <input type="file" accept="application/json" onChange={importDebateDoc} />
               </label>
             </div>
+            <button type="button" className="drive-link-btn" onClick={() => navigate('/drive')}>
+              Go To Drive 🗂
+            </button>
             <div
               className={`stack folder-drop-zone ${
                 dropTargetFolderId === 'root' ? 'folder-drop-zone-active' : ''
