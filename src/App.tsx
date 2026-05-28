@@ -5,11 +5,15 @@ import {
   type KeyboardEventHandler,
   type ReactElement,
   type MouseEvent as ReactMouseEvent,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from 'react'
+import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { db } from './firebase'
+import { useAuth } from './AuthContext'
 import './App.css'
 
 interface DebateDocument {
@@ -99,7 +103,7 @@ interface EditorSettings {
   shortcuts: Record<ShortcutAction, string>
 }
 
-const STORAGE_KEY = 'debatefiles.v1'
+
 const defaultSettings: EditorSettings = {
   defaultFont: 'Arial',
   textStyles: {
@@ -422,56 +426,52 @@ const formatDate = (timestamp: number) =>
     minute: '2-digit',
   })
 
-function App() {
-  const [data, setData] = useState<AppData>(() => {
-    const raw = localStorage.getItem(STORAGE_KEY)
-
-    if (!raw) {
+// Merge raw Firestore/localStorage data with current defaults, filling any missing keys.
+function parseAppData(raw: unknown): AppData {
+  try {
+    const parsed = raw as AppData
+    if (!parsed.debateDocs?.length || !parsed.activeDebateDocId) {
       return defaultData()
     }
-
-    try {
-      const parsed = JSON.parse(raw) as AppData
-      if (
-        !parsed.debateDocs?.length ||
-        !parsed.activeDebateDocId
-      ) {
-        return defaultData()
-      }
-      return {
-        ...parsed,
-        folders: (parsed.folders ?? []).map((folder, index) => ({
-          ...folder,
-          parentFolderId: folder.parentFolderId ?? null,
-          order: folder.order ?? index,
-        })),
-        debateDocs: parsed.debateDocs.map((doc) => ({
-          ...doc,
-          folderId: doc.folderId ?? null,
-        })),
-        openTabs:
-          parsed.openTabs?.length > 0
-            ? parsed.openTabs
-            : [{ id: parsed.activeDebateDocId, type: 'debate' }],
-        activeTab:
-          parsed.activeTab ?? { id: parsed.activeDebateDocId, type: 'debate' },
-        settings: {
-          ...defaultSettings,
-          ...(parsed.settings ?? {}),
-          textStyles: {
-            ...defaultSettings.textStyles,
-            ...(parsed.settings?.textStyles ?? {}),
-          },
-          shortcuts: {
-            ...defaultSettings.shortcuts,
-            ...(parsed.settings?.shortcuts ?? {}),
-          },
+    return {
+      ...parsed,
+      folders: (parsed.folders ?? []).map((folder, index) => ({
+        ...folder,
+        parentFolderId: folder.parentFolderId ?? null,
+        order: folder.order ?? index,
+      })),
+      debateDocs: parsed.debateDocs.map((d) => ({
+        ...d,
+        folderId: d.folderId ?? null,
+      })),
+      openTabs:
+        parsed.openTabs?.length > 0
+          ? parsed.openTabs
+          : [{ id: parsed.activeDebateDocId, type: 'debate' }],
+      activeTab:
+        parsed.activeTab ?? { id: parsed.activeDebateDocId, type: 'debate' },
+      settings: {
+        ...defaultSettings,
+        ...(parsed.settings ?? {}),
+        textStyles: {
+          ...defaultSettings.textStyles,
+          ...(parsed.settings?.textStyles ?? {}),
         },
-      }
-    } catch {
-      return defaultData()
+        shortcuts: {
+          ...defaultSettings.shortcuts,
+          ...(parsed.settings?.shortcuts ?? {}),
+        },
+      },
     }
-  })
+  } catch {
+    return defaultData()
+  }
+}
+
+function App() {
+  const { user, signOut } = useAuth()
+  const [data, setData] = useState<AppData>(defaultData)
+  const [dataLoading, setDataLoading] = useState(true)
 
   const [invisibilityMode, setInvisibilityMode] = useState(false)
   const [status, setStatus] = useState('Ready')
@@ -546,10 +546,33 @@ function App() {
     [data.folders],
   )
 
+  // Load user data from Firestore on mount.
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
-    setStatus('Saved locally')
-  }, [data])
+    if (!user) return
+    const docRef = doc(db, 'users', user.uid, 'data', 'appData')
+    getDoc(docRef).then((snap) => {
+      if (snap.exists()) {
+        setData(parseAppData(snap.data()))
+      }
+      setDataLoading(false)
+    }).catch(() => {
+      setDataLoading(false)
+    })
+  }, [user])
+
+  // Save to Firestore (debounced 1.5 s) whenever data changes after load.
+  const saveToFirestore = useCallback(async (payload: AppData) => {
+    if (!user) return
+    const docRef = doc(db, 'users', user.uid, 'data', 'appData')
+    await setDoc(docRef, payload)
+    setStatus('Saved to cloud ☁')
+  }, [user])
+
+  useEffect(() => {
+    if (dataLoading) return
+    const timer = setTimeout(() => void saveToFirestore(data), 1500)
+    return () => clearTimeout(timer)
+  }, [data, dataLoading, saveToFirestore])
 
   useEffect(() => {
     if (!editorRef.current || !activeDebateDoc) {
@@ -1843,6 +1866,17 @@ function App() {
     <p>Select a speech document.</p>
   )
 
+  if (dataLoading) {
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        minHeight: '100svh', background: 'var(--bg)', color: 'var(--text)', fontSize: 14,
+      }}>
+        Loading your files…
+      </div>
+    )
+  }
+
   return (
     <main
       className="app-layout"
@@ -1858,20 +1892,40 @@ function App() {
             />
             <h2>Debate Files</h2>
           </div>
-          <button
-            type="button"
-            className="icon-button"
-            aria-label="Open settings"
-            title="Settings"
-            onClick={() =>
-              setLeftPanelView((previous) =>
-                previous === 'settings' ? 'files' : 'settings',
-              )
-            }
-          >
-            ⚙
-          </button>
+          <div className="panel-header-actions">
+            <button
+              type="button"
+              className="icon-button"
+              aria-label="Open settings"
+              title="Settings"
+              onClick={() =>
+                setLeftPanelView((previous) =>
+                  previous === 'settings' ? 'files' : 'settings',
+                )
+              }
+            >
+              ⚙
+            </button>
+          </div>
         </div>
+        {user && (
+          <div className="user-bar">
+            {user.photoURL && (
+              <img src={user.photoURL} alt={user.displayName ?? 'User'} className="user-avatar" referrerPolicy="no-referrer" />
+            )}
+            <span className="user-name" title={user.email ?? ''}>
+              {user.displayName ?? user.email}
+            </span>
+            <button
+              type="button"
+              className="user-signout"
+              title="Sign out"
+              onClick={() => void signOut()}
+            >
+              Sign out
+            </button>
+          </div>
+        )}
         {leftPanelView === 'settings' ? (
           <div className="settings-panel">
             <h3>Settings</h3>
