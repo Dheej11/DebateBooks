@@ -119,7 +119,7 @@ const defaultSettings: EditorSettings = {
   theme: 'dark',
   defaultFont: 'Arial',
   textStyles: {
-    defaultText: { fontSize: 15, style: 'normal', color: '#111827', align: 'left' },
+    defaultText: { fontSize: 15, style: 'normal', color: '', align: 'left' },
     tag: { fontSize: 16, style: 'bold', color: '#6b21a8', align: 'left' },
     heading1: { fontSize: 34, style: 'bold', color: '#0f172a', align: 'left' },
     heading2: { fontSize: 26, style: 'bold', color: '#1f2937', align: 'left' },
@@ -495,7 +495,7 @@ function App() {
   const [isSplitView, setIsSplitView] = useState(false)
   const [splitRatio, setSplitRatio] = useState(50)
   const [isResizingSplit, setIsResizingSplit] = useState(false)
-  const [activeTextColor, setActiveTextColor] = useState('#111827')
+  const [activeTextColor, setActiveTextColor] = useState('')
   const [activeTextSize, setActiveTextSize] = useState(15)
   const [activeHighlightColor, setActiveHighlightColor] = useState('#fff59d')
   const [isShortcutsDialogOpen, setIsShortcutsDialogOpen] = useState(false)
@@ -804,8 +804,10 @@ function App() {
       `font-weight: ${css.fontWeight}`,
       `font-style: ${css.fontStyle}`,
       `text-decoration: ${css.textDecoration}`,
-      `color: ${ts.color}`,
     ]
+    if (ts.color) {
+      parts.push(`color: ${ts.color}`)
+    }
     if ('align' in ts && ts.align) {
       parts.push(`text-align: ${ts.align}`)
     }
@@ -2076,7 +2078,8 @@ function App() {
                     <div className="color-row">
                       <input
                         type="color"
-                        value={data.settings.textStyles[group.key].color}
+                        value={data.settings.textStyles[group.key].color || '#111827'}
+                        disabled={!data.settings.textStyles[group.key].color}
                         onChange={(event) =>
                           updateTextStyleSetting(group.key, 'color', event.target.value)
                         }
@@ -2087,6 +2090,7 @@ function App() {
                           updateTextStyleSetting(group.key, 'color', event.target.value)
                         }
                       >
+                        <option value=''>Auto (follows theme)</option>
                         {colorChoices.map((color) => (
                           <option key={color} value={color}>
                             {color}
@@ -2301,7 +2305,7 @@ function App() {
               <div className="toolbar-color-select-wrap">
                 <span
                   className="toolbar-color-dot"
-                  style={{ background: activeTextColor }}
+                  style={{ background: activeTextColor || 'var(--text)' }}
                 />
                 <select
                   value={activeTextColor}
