@@ -11,7 +11,7 @@ import {
   useState,
 } from 'react'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { db } from './firebase'
 import { useAuth } from './AuthContext'
 import './App.css'
@@ -484,6 +484,7 @@ function parseAppData(raw: unknown): AppData {
 function App() {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [data, setData] = useState<AppData>(defaultData)
   const [dataLoading, setDataLoading] = useState(true)
 
@@ -589,6 +590,43 @@ function App() {
         setStatus('Saved locally (cloud not connected)')
       })
   }, [user, localKey])
+
+  // Open a specific doc passed via router state (e.g. from the Drive page).
+  useEffect(() => {
+    if (dataLoading) return
+    const state = location.state as { openDocId?: string; openSpeechDocId?: string } | null
+    if (state?.openDocId) {
+      setData((prev) => {
+        const exists = prev.debateDocs.some((d) => d.id === state.openDocId)
+        if (!exists) return prev
+        return {
+          ...prev,
+          activeDebateDocId: state.openDocId!,
+          openTabs: prev.openTabs.some((t) => t.id === state.openDocId && t.type === 'debate')
+            ? prev.openTabs
+            : [...prev.openTabs, { id: state.openDocId!, type: 'debate' }],
+          activeTab: { id: state.openDocId!, type: 'debate' },
+        }
+      })
+      // Clear the state so refreshing doesn't re-open it
+      navigate('/app', { replace: true, state: null })
+    } else if (state?.openSpeechDocId) {
+      setData((prev) => {
+        const exists = prev.speechDocs.some((d) => d.id === state.openSpeechDocId)
+        if (!exists) return prev
+        return {
+          ...prev,
+          activeSpeechId: state.openSpeechDocId!,
+          openTabs: prev.openTabs.some((t) => t.id === state.openSpeechDocId && t.type === 'speech')
+            ? prev.openTabs
+            : [...prev.openTabs, { id: state.openSpeechDocId!, type: 'speech' }],
+          activeTab: { id: state.openSpeechDocId!, type: 'speech' },
+        }
+      })
+      navigate('/app', { replace: true, state: null })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataLoading])
 
   // Save: write to localStorage immediately + Firestore after 1.5 s debounce.
   const saveToFirestore = useCallback(async (payload: AppData) => {

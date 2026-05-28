@@ -94,12 +94,9 @@ export default function Landing() {
                 <span className="landing-user-name">{user.displayName ?? user.email}</span>
                 <span className="landing-user-email">{user.email}</span>
               </div>
-              <button className="landing-nav-cta" onClick={() => navigate('/app')}>
-                Open App
-              </button>
-              <button className="landing-nav-signout" onClick={() => void signOut()}>
-                Sign out
-              </button>
+              <button className="landing-nav-signin" onClick={() => navigate('/drive')}>My Drive</button>
+              <button className="landing-nav-cta" onClick={() => navigate('/app')}>Open App</button>
+              <button className="landing-nav-signout" onClick={() => void signOut()}>Sign out</button>
             </div>
           ) : (
             <>

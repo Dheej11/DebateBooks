@@ -7,6 +7,7 @@ import ProtectedRoute from './ProtectedRoute'
 import App from './App.tsx'
 import Landing from './Landing.tsx'
 import LoginPage from './LoginPage.tsx'
+import Drive from './Drive.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -20,6 +21,14 @@ createRoot(document.getElementById('root')!).render(
             element={
               <ProtectedRoute>
                 <App />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/drive"
+            element={
+              <ProtectedRoute>
+                <Drive />
               </ProtectedRoute>
             }
           />
