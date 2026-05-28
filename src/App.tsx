@@ -546,21 +546,37 @@ function App() {
     [data.folders],
   )
 
-  // Load user data from Firestore on mount.
-  useEffect(() => {
-    if (!user) return
-    const docRef = doc(db, 'users', user.uid, 'data', 'appData')
-    getDoc(docRef).then((snap) => {
-      if (snap.exists()) {
-        setData(parseAppData(snap.data()))
-      }
-      setDataLoading(false)
-    }).catch(() => {
-      setDataLoading(false)
-    })
-  }, [user])
+  const localKey = user ? `debatefiles.v1.${user.uid}` : null
 
-  // Save to Firestore (debounced 1.5 s) whenever data changes after load.
+  // Load: try Firestore first, fall back to localStorage so data is never lost.
+  useEffect(() => {
+    if (!user || !localKey) return
+
+    // Show locally-cached data immediately so the app feels instant.
+    const cached = localStorage.getItem(localKey)
+    if (cached) {
+      try { setData(parseAppData(JSON.parse(cached))) } catch { /* ignore */ }
+    }
+
+    // Then fetch from Firestore and upgrade if cloud data exists.
+    const docRef = doc(db, 'users', user.uid, 'data', 'appData')
+    getDoc(docRef)
+      .then((snap) => {
+        if (snap.exists()) {
+          const cloud = parseAppData(snap.data())
+          setData(cloud)
+          localStorage.setItem(localKey, JSON.stringify(cloud))
+        }
+        setDataLoading(false)
+      })
+      .catch(() => {
+        // Firestore unavailable (not set up yet) — local cache is the source of truth.
+        setDataLoading(false)
+        setStatus('Saved locally (cloud not connected)')
+      })
+  }, [user, localKey])
+
+  // Save: write to localStorage immediately + Firestore after 1.5 s debounce.
   const saveToFirestore = useCallback(async (payload: AppData) => {
     if (!user) return
     const docRef = doc(db, 'users', user.uid, 'data', 'appData')
@@ -569,10 +585,11 @@ function App() {
   }, [user])
 
   useEffect(() => {
-    if (dataLoading) return
+    if (dataLoading || !localKey) return
+    localStorage.setItem(localKey, JSON.stringify(data))
     const timer = setTimeout(() => void saveToFirestore(data), 1500)
     return () => clearTimeout(timer)
-  }, [data, dataLoading, saveToFirestore])
+  }, [data, dataLoading, localKey, saveToFirestore])
 
   useEffect(() => {
     if (!editorRef.current || !activeDebateDoc) {
@@ -2466,7 +2483,10 @@ function App() {
             </button>
           ))}
         </div>
-        <p className="status">{status}</p>
+        <div className={`sync-status ${status.includes('cloud ☁') ? 'sync-status-cloud' : status.includes('locally') ? 'sync-status-local' : 'sync-status-idle'}`}>
+          <span className="sync-status-dot" />
+          <span className="sync-status-text">{status}</span>
+        </div>
       </aside>
       {isShortcutsDialogOpen ? (
         <div
