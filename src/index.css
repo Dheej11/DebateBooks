@@ -1,4 +1,73 @@
+/* ── Base (fallback = Dark) ──────────────────────────────────── */
 :root {
+  --text: #9ca3af;
+  --text-h: #f4f5f7;
+  --bg: #111218;
+  --border: #2e303a;
+  --accent: #c084fc;
+  --accent-bg: rgba(192, 132, 252, 0.15);
+  --accent-border: rgba(192, 132, 252, 0.5);
+  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
+  font: 14px/145% var(--sans);
+  color: var(--text);
+  background: var(--bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color-scheme: dark;
+}
+
+/* ── Dark ───────────────────────────────────────────────────── */
+[data-theme='dark'] {
+  --text: #9ca3af;
+  --text-h: #f4f5f7;
+  --bg: #111218;
+  --border: #2e303a;
+  --accent: #c084fc;
+  --accent-bg: rgba(192, 132, 252, 0.15);
+  --accent-border: rgba(192, 132, 252, 0.5);
+  color-scheme: dark;
+}
+
+/* ── Midnight (deep navy blue) ──────────────────────────────── */
+[data-theme='midnight'] {
+  --text: #8892aa;
+  --text-h: #e2e8f0;
+  --bg: #080e1c;
+  --border: #182035;
+  --accent: #3b82f6;
+  --accent-bg: rgba(59, 130, 246, 0.12);
+  --accent-border: rgba(59, 130, 246, 0.45);
+  color-scheme: dark;
+}
+
+/* ── Slate (cool charcoal) ──────────────────────────────────── */
+[data-theme='slate'] {
+  --text: #94a3b8;
+  --text-h: #f1f5f9;
+  --bg: #0f1117;
+  --border: #1e2533;
+  --accent: #38bdf8;
+  --accent-bg: rgba(56, 189, 248, 0.1);
+  --accent-border: rgba(56, 189, 248, 0.4);
+  color-scheme: dark;
+}
+
+/* ── Forest (dark green) ────────────────────────────────────── */
+[data-theme='forest'] {
+  --text: #84a898;
+  --text-h: #d8f0e4;
+  --bg: #0a130e;
+  --border: #172b1f;
+  --accent: #4ade80;
+  --accent-bg: rgba(74, 222, 128, 0.1);
+  --accent-border: rgba(74, 222, 128, 0.38);
+  color-scheme: dark;
+}
+
+/* ── Light ──────────────────────────────────────────────────── */
+[data-theme='light'] {
   --text: #54506a;
   --text-h: #0e0d14;
   --bg: #fafafc;
@@ -6,29 +75,34 @@
   --accent: #7c3aed;
   --accent-bg: rgba(124, 58, 237, 0.09);
   --accent-border: rgba(124, 58, 237, 0.45);
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  font: 14px/145% var(--sans);
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f4f5f7;
-    --bg: #111218;
-    --border: #2e303a;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-  }
+/* ── Sepia (warm parchment) ─────────────────────────────────── */
+[data-theme='sepia'] {
+  --text: #6b5c45;
+  --text-h: #2c2014;
+  --bg: #f5efe2;
+  --border: #d4c4aa;
+  --accent: #b45309;
+  --accent-bg: rgba(180, 83, 9, 0.08);
+  --accent-border: rgba(180, 83, 9, 0.38);
+  color-scheme: light;
 }
 
+/* ── Debate Classic (clean white, Verbatim-inspired) ────────── */
+[data-theme='classic'] {
+  --text: #374151;
+  --text-h: #111827;
+  --bg: #ffffff;
+  --border: #d1d5db;
+  --accent: #1d4ed8;
+  --accent-bg: rgba(29, 78, 216, 0.06);
+  --accent-border: rgba(29, 78, 216, 0.4);
+  color-scheme: light;
+}
+
+/* ── Global ─────────────────────────────────────────────────── */
 #root {
   width: 100%;
   min-height: 100svh;

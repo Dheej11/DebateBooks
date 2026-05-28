@@ -92,6 +92,7 @@ interface TextStyleSetting {
 }
 
 interface EditorSettings {
+  theme: string
   defaultFont: string
   textStyles: {
     defaultText: TextStyleSetting
@@ -106,6 +107,7 @@ interface EditorSettings {
 
 
 const defaultSettings: EditorSettings = {
+  theme: 'dark',
   defaultFont: 'Arial',
   textStyles: {
     defaultText: { fontSize: 15, style: 'normal', color: '#111827', align: 'left' },
@@ -592,6 +594,10 @@ function App() {
     const timer = setTimeout(() => void saveToFirestore(data), 1500)
     return () => clearTimeout(timer)
   }, [data, dataLoading, localKey, saveToFirestore])
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', data.settings.theme ?? 'dark')
+  }, [data.settings.theme])
 
   useEffect(() => {
     if (!editorRef.current || !activeDebateDoc) {
@@ -1935,6 +1941,26 @@ function App() {
         {leftPanelView === 'settings' ? (
           <div className="settings-panel">
             <h3>Settings</h3>
+            <h4 className="settings-section-title">Appearance</h4>
+            <div className="settings-group">
+              <label className="settings-row">
+                <span>Theme</span>
+                <select
+                  value={data.settings.theme ?? 'dark'}
+                  onChange={(e) =>
+                    updateSettings((settings) => {
+                      settings.theme = e.target.value
+                    })
+                  }
+                >
+                  {appThemes.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
             <h4 className="settings-section-title">New Document Template</h4>
             <p className="settings-section-desc">These settings are applied when creating a new document. They do not affect existing documents.</p>
             <div className="settings-group">
