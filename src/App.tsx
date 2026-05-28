@@ -390,20 +390,12 @@ const defaultData = (): AppData => {
     folderId: null,
   }
 
-  const speechDoc: SpeechDocument = {
-    id: crypto.randomUUID(),
-    title: '1AC Speech',
-    updatedAt: Date.now(),
-    content: '<h2>1AC</h2><p>Send cards here with Cmd/Ctrl + Shift + S.</p>',
-    cardRefs: [],
-  }
-
   return {
     debateDocs: [debateDoc],
     folders: [],
-    speechDocs: [speechDoc],
+    speechDocs: [],
     activeDebateDocId: debateDoc.id,
-    activeSpeechId: speechDoc.id,
+    activeSpeechId: '',
     openTabs: [{ id: debateDoc.id, type: 'debate' }],
     activeTab: { id: debateDoc.id, type: 'debate' },
     settings: defaultSettings,
@@ -442,7 +434,6 @@ function App() {
       const parsed = JSON.parse(raw) as AppData
       if (
         !parsed.debateDocs?.length ||
-        !parsed.speechDocs?.length ||
         !parsed.activeDebateDocId
       ) {
         return defaultData()
