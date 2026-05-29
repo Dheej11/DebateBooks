@@ -279,8 +279,106 @@ button:disabled {
 
 .editor-toolbar {
   border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--bg);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.toolbar-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+}
+
+.toolbar-tab {
+  background: transparent;
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.toolbar-tab:hover {
+  background: var(--accent-bg);
+}
+
+.toolbar-tab.active {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.toolbar-groups-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  width: 100%;
+}
+
+.toolbar-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--bg-input, var(--bg));
+  border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 10px;
+  padding: 8px 12px;
+  flex: 1 1 280px;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.toolbar-group:hover {
+  border-color: var(--accent-border);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.toolbar-group-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-h);
+  opacity: 0.85;
+}
+
+.toolbar-group-content {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.toolbar-group button {
+  font-size: 12px;
+  padding: 5px 9px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 30px;
+  box-sizing: border-box;
+}
+
+.toolbar-group button:hover {
+  background: var(--accent-bg);
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.toolbar-group button:active {
+  transform: translateY(0);
 }
 
 .tabs-ribbon {
@@ -368,7 +466,8 @@ button:disabled {
   min-height: 480px;
   padding: 12px;
   overflow: auto;
-  color: var(--text);
+  background: #ffffff;
+  color: #374151;
 }
 
 .editor:focus {
@@ -791,3 +890,179 @@ button:disabled {
     display: none;
   }
 }
+
+.editor h1, .editor h2, .editor h3 {
+  color: #111827;
+  margin-top: 16px;
+  margin-bottom: 8px;
+}
+
+/* ── Custom Color Picker Popover ── */
+.color-picker-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1000;
+  background: transparent;
+}
+
+.color-picker-popover {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.2);
+  z-index: 1001;
+  width: 160px;
+  animation: fadeInPopover 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fadeInPopover {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.color-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+
+.color-swatch {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.color-swatch:hover {
+  transform: scale(1.15);
+  box-shadow: 0 0 0 2px var(--accent-bg);
+}
+
+.color-swatch.active {
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 0 2px var(--bg);
+}
+
+.color-swatch-default {
+  background: var(--accent-bg);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: bold;
+  border-color: var(--border);
+}
+
+.color-swatch-custom {
+  background: linear-gradient(135deg, #ff4b4b, #ffaa00, #ffff00, #00ff00, #00ffff, #7c3aed);
+  border-color: var(--border);
+}
+
+
+/* ── Editor Autosave Status Footer Bar ── */
+.editor-status-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 10px 10px;
+  background: var(--bg);
+  font-size: 11px;
+  color: var(--text);
+  opacity: 0.85;
+}
+
+/* Adjust editor border-radius when status bar is appended */
+.editor {
+  border-bottom-left-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+}
+
+.save-pulse-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #22c55e;
+  display: inline-block;
+  box-shadow: 0 0 8px #22c55e;
+  animation: savePulse 2s infinite ease-in-out;
+}
+
+@keyframes savePulse {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+    box-shadow: 0 0 12px #22c55e;
+  }
+}
+
+.editor p {
+  color: #374151;
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+.editor .tag-text {
+  color: #111827;
+}
+
+/* ── Invisibility Mode: hide everything except highlight spans ── */
+
+.editor.invisibility * {
+  color: transparent !important;
+  background-color: transparent !important;
+  text-decoration-color: transparent !important;
+  border-color: transparent !important;
+}
+
+.editor.invisibility span[style*="background-color"] {
+  color: #111827 !important;
+  background-color: inherit !important;
+}
+
+.editor.invisibility span[style*="background-color"] * {
+  color: #111827 !important;
+}
+
+/* ── Document Outline Sidebar Style ── */
+
+.document-outline-pane {
+  background: var(--bg);
+  height: 100%;
+}
+
+.outline-item {
+  transition: all 0.2s ease;
+  border-radius: 4px;
+}
+
+.outline-item:hover {
+  background: var(--accent-bg);
+  color: var(--accent) !important;
+}
+
+/* ── Heading Color Palette (inline in settings) ───────────── */
