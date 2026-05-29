@@ -165,20 +165,22 @@ const defaultSettings: EditorSettings = {
   },
   defaultHighlightColor: '#fff59d',
   shortcuts: {
-    bold: 'Mod+B',
-    underline: 'Mod+U',
-    highlight: 'Mod+Shift+H',
-    boldUnderline: 'Mod+Shift+U',
-    boldUnderlineHighlight: 'Mod+Shift+J',
-    pasteAsDefaultText: 'Mod+Shift+V',
-    tagText: 'Mod+Shift+T',
-    heading1: 'Mod+Shift+1',
-    heading2: 'Mod+Shift+2',
-    heading3: 'Mod+Shift+3',
-    defaultText: 'Mod+Shift+0',
-    condense: 'Mod+Shift+C',
-    sendToSpeech: 'Mod+Shift+S',
-    clearFormatting: 'Mod+Space',
+    // Primary card-cutting actions — F-key row for fast one-hand access
+    bold:                  'F1',
+    underline:             'F2',
+    highlight:             'F3',
+    boldUnderline:         'F4',
+    boldUnderlineHighlight:'F5',
+    tagText:               'F7',
+    heading1:              'F8',
+    heading2:              'F9',
+    heading3:              'F10',
+    // Secondary actions — kept as Mod+ combos
+    defaultText:           'Mod+Shift+0',
+    condense:              'Mod+Shift+C',
+    sendToSpeech:          'Mod+Shift+S',
+    clearFormatting:       'Mod+Space',
+    pasteAsDefaultText:    'Mod+Shift+V',
   },
 }
 
@@ -294,24 +296,24 @@ const headingKeys: Array<keyof EditorSettings['textStyles']> = [
 const shortcutGroups: Array<{
   key: ShortcutAction
   label: string
+  group?: string
 }> = [
-  { key: 'bold', label: 'Bold' },
-  { key: 'underline', label: 'Underline' },
-  { key: 'highlight', label: 'Highlight' },
-  { key: 'boldUnderline', label: 'Bold + Underline' },
-  {
-    key: 'boldUnderlineHighlight',
-    label: 'Bold + Underline + Highlight',
-  },
-  { key: 'pasteAsDefaultText', label: 'Paste as Default Text' },
-  { key: 'tagText', label: 'Set text to Tag' },
-  { key: 'heading1', label: 'Set text to Heading 1' },
-  { key: 'heading2', label: 'Set text to Heading 2' },
-  { key: 'heading3', label: 'Set text to Heading 3' },
-  { key: 'defaultText', label: 'Set text to Default Text' },
-  { key: 'condense', label: 'Condense' },
-  { key: 'sendToSpeech', label: 'Send to Speech' },
-  { key: 'clearFormatting', label: 'Clear Formatting' },
+  // F-key row — one-hand card-cutting actions
+  { key: 'bold',                  label: 'Bold',                       group: 'F-keys' },
+  { key: 'underline',             label: 'Underline',                  group: 'F-keys' },
+  { key: 'highlight',             label: 'Highlight',                  group: 'F-keys' },
+  { key: 'boldUnderline',         label: 'Bold + Underline',           group: 'F-keys' },
+  { key: 'boldUnderlineHighlight',label: 'Bold + Underline + Highlight', group: 'F-keys' },
+  { key: 'tagText',               label: 'Set text to Tag',            group: 'F-keys' },
+  { key: 'heading1',              label: 'Set text to Heading 1',      group: 'F-keys' },
+  { key: 'heading2',              label: 'Set text to Heading 2',      group: 'F-keys' },
+  { key: 'heading3',              label: 'Set text to Heading 3',      group: 'F-keys' },
+  // Modifier combos — secondary actions
+  { key: 'defaultText',        label: 'Set text to Default Text', group: 'Combos' },
+  { key: 'condense',           label: 'Condense',                 group: 'Combos' },
+  { key: 'sendToSpeech',       label: 'Send to Speech',           group: 'Combos' },
+  { key: 'clearFormatting',    label: 'Clear Formatting',         group: 'Combos' },
+  { key: 'pasteAsDefaultText', label: 'Paste as Default Text',    group: 'Combos' },
 ]
 
 interface ParsedShortcut {
@@ -2872,8 +2874,9 @@ function App() {
             <div className="settings-group">
               <h4>Keyboard Shortcuts</h4>
               <p className="hint">
-                Use format like <code>{isMac ? 'Cmd' : 'Ctrl'}+Shift+H</code> or <code>{isMac ? 'Cmd' : 'Ctrl'}+Alt+1</code>.
-                Your system uses <strong>{isMac ? 'Cmd' : 'Ctrl'}</strong> as the modifier key.
+                Use <code>F1</code>–<code>F10</code> for standalone F-key shortcuts, or combos like <code>{isMac ? 'Cmd' : 'Ctrl'}+Shift+H</code>.
+                Your modifier key is <strong>{isMac ? 'Cmd' : 'Ctrl'}</strong>.
+                {isMac && <> On Mac, press <strong>Fn</strong> together with the F-key unless "Use F1, F2 as standard keys" is enabled in System Settings → Keyboard.</>}
               </p>
               {shortcutsTable}
             </div>
@@ -3429,7 +3432,14 @@ function App() {
 
             {activeToolbarTab === 'shortcuts' && (
               <div className="toolbar-group toolbar-shortcuts-panel">
-                <div className="toolbar-group-label">KEYBOARD SHORTCUTS</div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                  <div className="toolbar-group-label">KEYBOARD SHORTCUTS</div>
+                  {isMac && (
+                    <span className="toolbar-fkey-note">
+                      💡 Mac: hold <kbd>Fn</kbd> for F-keys, or enable them in System Settings → Keyboard
+                    </span>
+                  )}
+                </div>
                 <div className="toolbar-shortcuts-table-wrap">
                   {shortcutsTableSideBySide}
                 </div>
