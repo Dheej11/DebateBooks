@@ -165,20 +165,22 @@ const defaultSettings: EditorSettings = {
   },
   defaultHighlightColor: '#fff59d',
   shortcuts: {
-    bold: 'Mod+B',
-    underline: 'Mod+U',
-    highlight: 'Mod+Shift+H',
-    boldUnderline: 'Mod+Shift+U',
-    boldUnderlineHighlight: 'Mod+Shift+J',
-    pasteAsDefaultText: 'Mod+Shift+V',
-    tagText: 'Mod+Shift+T',
-    heading1: 'Mod+Shift+1',
-    heading2: 'Mod+Shift+2',
-    heading3: 'Mod+Shift+3',
-    defaultText: 'Mod+Shift+0',
-    condense: 'Mod+Shift+C',
-    sendToSpeech: 'Mod+Shift+S',
-    clearFormatting: 'Mod+Space',
+    // Primary card-cutting actions — F-key row for fast one-hand access
+    bold:                  'F1',
+    underline:             'F2',
+    highlight:             'F3',
+    boldUnderline:         'F4',
+    boldUnderlineHighlight:'F5',
+    tagText:               'F7',
+    heading1:              'F8',
+    heading2:              'F9',
+    heading3:              'F10',
+    // Secondary actions — kept as Mod+ combos
+    defaultText:           'Mod+Shift+0',
+    condense:              'Mod+Shift+C',
+    sendToSpeech:          'Mod+Shift+S',
+    clearFormatting:       'Mod+Space',
+    pasteAsDefaultText:    'Mod+Shift+V',
   },
 }
 
@@ -294,24 +296,24 @@ const headingKeys: Array<keyof EditorSettings['textStyles']> = [
 const shortcutGroups: Array<{
   key: ShortcutAction
   label: string
+  group?: string
 }> = [
-  { key: 'bold', label: 'Bold' },
-  { key: 'underline', label: 'Underline' },
-  { key: 'highlight', label: 'Highlight' },
-  { key: 'boldUnderline', label: 'Bold + Underline' },
-  {
-    key: 'boldUnderlineHighlight',
-    label: 'Bold + Underline + Highlight',
-  },
-  { key: 'pasteAsDefaultText', label: 'Paste as Default Text' },
-  { key: 'tagText', label: 'Set text to Tag' },
-  { key: 'heading1', label: 'Set text to Heading 1' },
-  { key: 'heading2', label: 'Set text to Heading 2' },
-  { key: 'heading3', label: 'Set text to Heading 3' },
-  { key: 'defaultText', label: 'Set text to Default Text' },
-  { key: 'condense', label: 'Condense' },
-  { key: 'sendToSpeech', label: 'Send to Speech' },
-  { key: 'clearFormatting', label: 'Clear Formatting' },
+  // F-key row — one-hand card-cutting actions
+  { key: 'bold',                  label: 'Bold',                       group: 'F-keys' },
+  { key: 'underline',             label: 'Underline',                  group: 'F-keys' },
+  { key: 'highlight',             label: 'Highlight',                  group: 'F-keys' },
+  { key: 'boldUnderline',         label: 'Bold + Underline',           group: 'F-keys' },
+  { key: 'boldUnderlineHighlight',label: 'Bold + Underline + Highlight', group: 'F-keys' },
+  { key: 'tagText',               label: 'Set text to Tag',            group: 'F-keys' },
+  { key: 'heading1',              label: 'Set text to Heading 1',      group: 'F-keys' },
+  { key: 'heading2',              label: 'Set text to Heading 2',      group: 'F-keys' },
+  { key: 'heading3',              label: 'Set text to Heading 3',      group: 'F-keys' },
+  // Modifier combos — secondary actions
+  { key: 'defaultText',        label: 'Set text to Default Text', group: 'Combos' },
+  { key: 'condense',           label: 'Condense',                 group: 'Combos' },
+  { key: 'sendToSpeech',       label: 'Send to Speech',           group: 'Combos' },
+  { key: 'clearFormatting',    label: 'Clear Formatting',         group: 'Combos' },
+  { key: 'pasteAsDefaultText', label: 'Paste as Default Text',    group: 'Combos' },
 ]
 
 interface ParsedShortcut {
@@ -567,6 +569,191 @@ function parseAppData(raw: unknown): AppData {
   }
 }
 
+/* ── Keyboard shortcut keys that browsers reserve and cannot be overridden ── */
+const UNOVERRIDABLE_KEYS: Record<string, string> = {
+  f6:  'F6 moves focus to the browser address bar and cannot be overridden.',
+  f11: 'F11 toggles browser fullscreen and cannot be overridden.',
+  f12: 'F12 opens browser DevTools and cannot be overridden.',
+}
+
+function ShortcutInputCell({
+  value,
+  onChange,
+}: {
+  value: string
+  onChange: (canonical: string) => void
+}) {
+  const [mode, setMode] = useState<'idle' | 'chooser' | 'manual' | 'record'>('idle')
+  const [draft, setDraft] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  // Close on outside click
+  useEffect(() => {
+    if (mode === 'idle') return
+    const handle = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setMode('idle')
+        setError(null)
+      }
+    }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [mode])
+
+  // Record mode: capture the next key sequence
+  useEffect(() => {
+    if (mode !== 'record') return
+    const handle = (e: KeyboardEvent) => {
+      if (['Control', 'Meta', 'Shift', 'Alt'].includes(e.key)) return
+      e.preventDefault()
+      e.stopPropagation()
+
+      const parts: string[] = []
+      if (e.metaKey || e.ctrlKey) parts.push('Mod')
+      if (e.altKey) parts.push('Alt')
+      if (e.shiftKey) parts.push('Shift')
+      let key = e.key
+      if (key === ' ') key = 'Space'
+      parts.push(key)
+      const recorded = parts.join('+')
+      const keyLower = key.toLowerCase()
+
+      if (UNOVERRIDABLE_KEYS[keyLower]) {
+        setDraft(recorded)
+        setError(`This macro is not available! ${UNOVERRIDABLE_KEYS[keyLower]}`)
+        return
+      }
+
+      const canonical = parseShortcutInputToCanonical(recorded)
+      if (!parseShortcut(canonical)) {
+        setDraft(recorded)
+        setError('Invalid shortcut recorded. Try again.')
+        return
+      }
+
+      setError(null)
+      onChange(canonical)
+      setMode('idle')
+    }
+    window.addEventListener('keydown', handle, { capture: true })
+    return () => window.removeEventListener('keydown', handle, { capture: true })
+  }, [mode, onChange])
+
+  const validateAndSave = (raw: string) => {
+    // Empty = clear the shortcut (it just won't fire)
+    if (!raw.trim()) {
+      setError(null)
+      onChange('')
+      setMode('idle')
+      return
+    }
+    const canonical = parseShortcutInputToCanonical(raw)
+    const parsed = parseShortcut(canonical)
+    if (!parsed) {
+      setError('Invalid format. Use e.g. "F1", "Cmd+Shift+H", "Mod+B".')
+      return
+    }
+    if (UNOVERRIDABLE_KEYS[parsed.key.toLowerCase()]) {
+      setError(`This macro is not available! ${UNOVERRIDABLE_KEYS[parsed.key.toLowerCase()]}`)
+      return
+    }
+    setError(null)
+    onChange(canonical)
+    setMode('idle')
+  }
+
+  const openChooser = () => {
+    setDraft(formatShortcutForDisplay(value))
+    setError(null)
+    setMode('chooser')
+  }
+
+  return (
+    <div ref={wrapRef} className="shortcut-cell">
+      {/* Always show the current keybind; clicking opens the chooser */}
+      <button
+        type="button"
+        className={`shortcut-display-btn ${mode !== 'idle' ? 'shortcut-display-btn-active' : ''}`}
+        onClick={mode === 'idle' ? openChooser : undefined}
+      >
+        {formatShortcutForDisplay(value)
+          ? <kbd>{formatShortcutForDisplay(value)}</kbd>
+          : <span className="shortcut-empty">— unset —</span>
+        }
+      </button>
+
+      {mode === 'chooser' && (
+        <div className="shortcut-chooser">
+          <div className="shortcut-current">
+            Current: <kbd>{formatShortcutForDisplay(value) || 'unset'}</kbd>
+          </div>
+          <button
+            type="button"
+            className="shortcut-mode-btn"
+            onClick={() => { setMode('manual'); setTimeout(() => inputRef.current?.focus(), 30) }}
+          >
+            ✏️ Manually Change New Keybind
+          </button>
+          <button
+            type="button"
+            className="shortcut-mode-btn shortcut-mode-record"
+            onClick={() => { setDraft(''); setError(null); setMode('record') }}
+          >
+            ⏺ Record New Keybind
+          </button>
+          <button type="button" className="shortcut-cancel-btn" onClick={() => setMode('idle')}>
+            Cancel
+          </button>
+        </div>
+      )}
+
+      {mode === 'manual' && (
+        <div className="shortcut-editor">
+          <input
+            ref={inputRef}
+            type="text"
+            className="shortcut-manual-input"
+            value={draft}
+            placeholder='e.g. F1, Cmd+Shift+H'
+            onChange={(e) => { setDraft(e.target.value); setError(null) }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') { e.preventDefault(); validateAndSave(draft) }
+              if (e.key === 'Escape') { e.preventDefault(); setMode('idle'); setError(null) }
+            }}
+          />
+          {error && <div className="shortcut-error">{error}</div>}
+          <div className="shortcut-editor-actions">
+            <button type="button" className="shortcut-save-btn" onClick={() => validateAndSave(draft)}>Save</button>
+            <button type="button" className="shortcut-cancel-btn" onClick={() => { setMode('idle'); setError(null) }}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {mode === 'record' && (
+        <div className="shortcut-editor shortcut-record-mode">
+          <div className="shortcut-recording-indicator">
+            <span className="shortcut-rec-dot" />
+            Press your key combination…
+          </div>
+          {draft && <div className="shortcut-recorded-preview"><kbd>{draft}</kbd></div>}
+          {error && <div className="shortcut-error">{error}</div>}
+          {error && (
+            <button type="button" className="shortcut-mode-btn shortcut-mode-record" style={{ marginTop: '6px' }}
+              onClick={() => { setDraft(''); setError(null) }}>
+              ⏺ Try Again
+            </button>
+          )}
+          <button type="button" className="shortcut-cancel-btn" onClick={() => { setMode('idle'); setError(null) }}>
+            Cancel
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function App() {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
@@ -607,8 +794,10 @@ function App() {
     y: number
   } | null>(null)
   const [activeEditorTarget, setActiveEditorTarget] = useState<PrimaryView>('debate')
-  const [activeToolbarTab, setActiveToolbarTab] = useState<'style' | 'headings' | 'actions'>('style')
+  const [activeToolbarTab, setActiveToolbarTab] = useState<'style' | 'headings' | 'actions' | 'shortcuts'>('style')
+  const [isToolbarCollapsed, setIsToolbarCollapsed] = useState(false)
   const editorRef = useRef<HTMLDivElement | null>(null)
+  const shortcutsSettingsSectionRef = useRef<HTMLDivElement | null>(null)
   const speechEditorRef = useRef<HTMLDivElement | null>(null)
   const savedSelectionRef = useRef<Range | null>(null)
   const splitContainerRef = useRef<HTMLDivElement | null>(null)
@@ -1281,20 +1470,6 @@ function App() {
     }
   }
 
-  const handleEditorClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    const target = event.target as HTMLElement
-    const p = target.closest('p') as HTMLElement | null
-    if (p && !p.querySelector('.tag-text')) {
-      const rect = p.getBoundingClientRect()
-      // If clicked near the far right edge of the paragraph where the copy button is shown in hover
-      if (event.clientX > rect.right - 80) {
-        event.preventDefault()
-        navigator.clipboard.writeText(p.innerText || '')
-        setStatus('Paragraph copied to clipboard')
-      }
-    }
-  }
-
   const getHeadingsFromHtml = (htmlContent: string) => {
     const parser = new DOMParser()
     const doc = parser.parseFromString(htmlContent || '', 'text/html')
@@ -1436,11 +1611,18 @@ function App() {
     setStatus('Tag applied')
   }
 
-  const applyHeading = (level: 1 | 2 | 3) => {
-    document.execCommand('formatBlock', false, `h${level}`)
-    const key = `heading${level}` as keyof EditorSettings['textStyles']
-    applyTemplateStyleToCurrentBlock(`h${level}`, key)
-    onEditorInput()
+  const handleEditorClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement
+    const p = target.closest('p') as HTMLElement | null
+    if (p && !p.querySelector('.tag-text')) {
+      const rect = p.getBoundingClientRect()
+      // If clicked near the far right edge of the paragraph where the copy button is shown in hover
+      if (event.clientX > rect.right - 80) {
+        event.preventDefault()
+        navigator.clipboard.writeText(p.innerText || '')
+        setStatus('Paragraph copied to clipboard')
+      }
+    }
   }
 
   const applyDefaultTextBlock = () => {
@@ -1472,6 +1654,13 @@ function App() {
     } else {
       onEditorInput()
     }
+  }
+
+  const applyHeading = (level: 1 | 2 | 3) => {
+    document.execCommand('formatBlock', false, `h${level}`)
+    const key = `heading${level}` as keyof EditorSettings['textStyles']
+    applyTemplateStyleToCurrentBlock(`h${level}`, key)
+    onEditorInput()
   }
 
   const applyTextColor = (color: string) => {
@@ -1944,6 +2133,13 @@ function App() {
     })
   }
 
+  const openSettingsAtShortcuts = () => {
+    setLeftPanelView('settings')
+    setTimeout(() => {
+      shortcutsSettingsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 120)
+  }
+
   const openDebateTab = (docId: string) => {
     setData((previous) => ({
       ...previous,
@@ -2201,18 +2397,41 @@ function App() {
           <tr key={shortcut.key}>
             <td>{shortcut.label}</td>
             <td>
-              <input
-                type="text"
-                value={formatShortcutForDisplay(data.settings.shortcuts[shortcut.key])}
-                onChange={(event) =>
-                  updateShortcutSetting(shortcut.key, parseShortcutInputToCanonical(event.target.value))
-                }
+              <ShortcutInputCell
+                value={data.settings.shortcuts[shortcut.key]}
+                onChange={(canonical) => updateShortcutSetting(shortcut.key, canonical)}
               />
             </td>
           </tr>
         ))}
       </tbody>
     </table>
+  )
+
+  const half = Math.ceil(shortcutGroups.length / 2)
+  const shortcutsTableSideBySide = (
+    <div className="shortcuts-side-by-side">
+      {[shortcutGroups.slice(0, half), shortcutGroups.slice(half)].map((group, colIdx) => (
+        <table key={colIdx} className="shortcuts-table shortcuts-table-compact">
+          <thead>
+            <tr><th>Action</th><th>Shortcut</th></tr>
+          </thead>
+          <tbody>
+            {group.map((shortcut) => (
+              <tr key={shortcut.key}>
+                <td>{shortcut.label}</td>
+                <td>
+                  <ShortcutInputCell
+                    value={data.settings.shortcuts[shortcut.key]}
+                    onChange={(canonical) => updateShortcutSetting(shortcut.key, canonical)}
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ))}
+    </div>
   )
 
   const renderFolderTree = (parentFolderId: string | null, depth = 0): ReactElement[] => {
@@ -2830,12 +3049,13 @@ function App() {
                 </div>
               </div>
             ))}
-            <h4 className="settings-section-title">Keyboard Shortcuts</h4>
+            <h4 className="settings-section-title" ref={shortcutsSettingsSectionRef}>Keyboard Shortcuts</h4>
             <div className="settings-group">
               <h4>Keyboard Shortcuts</h4>
               <p className="hint">
-                Use format like <code>{isMac ? 'Cmd' : 'Ctrl'}+Shift+H</code> or <code>{isMac ? 'Cmd' : 'Ctrl'}+Alt+1</code>.
-                Your system uses <strong>{isMac ? 'Cmd' : 'Ctrl'}</strong> as the modifier key.
+                Use <code>F1</code>–<code>F10</code> for standalone F-key shortcuts, or combos like <code>{isMac ? 'Cmd' : 'Ctrl'}+Shift+H</code>.
+                Your modifier key is <strong>{isMac ? 'Cmd' : 'Ctrl'}</strong>.
+                {isMac && <> On Mac, press <strong>Fn</strong> together with the F-key unless "Use F1, F2 as standard keys" is enabled in System Settings → Keyboard.</>}
               </p>
               {shortcutsTable}
             </div>
@@ -3096,31 +3316,55 @@ function App() {
             ))}
           </div>
         ) : null}
-        <header className="editor-toolbar">
+        <header className={`editor-toolbar ${isToolbarCollapsed ? 'editor-toolbar-collapsed' : ''}`}>
           <div className="toolbar-tabs">
             <button
               type="button"
               className={`toolbar-tab ${activeToolbarTab === 'style' ? 'active' : ''}`}
-              onClick={() => setActiveToolbarTab('style')}
+              onClick={() => { setActiveToolbarTab('style'); setIsToolbarCollapsed(false) }}
             >
               Style & Colors
             </button>
             <button
               type="button"
               className={`toolbar-tab ${activeToolbarTab === 'headings' ? 'active' : ''}`}
-              onClick={() => setActiveToolbarTab('headings')}
+              onClick={() => { setActiveToolbarTab('headings'); setIsToolbarCollapsed(false) }}
             >
               Headings & Tags
             </button>
             <button
               type="button"
               className={`toolbar-tab ${activeToolbarTab === 'actions' ? 'active' : ''}`}
-              onClick={() => setActiveToolbarTab('actions')}
+              onClick={() => { setActiveToolbarTab('actions'); setIsToolbarCollapsed(false) }}
             >
               Actions
             </button>
+            <button
+              type="button"
+              className={`toolbar-tab ${activeToolbarTab === 'shortcuts' ? 'active' : ''}`}
+              onClick={() => { setActiveToolbarTab('shortcuts'); setIsToolbarCollapsed(false) }}
+            >
+              Shortcuts
+            </button>
+            <div className="toolbar-tabs-spacer" />
+            <button
+              type="button"
+              className="toolbar-settings-btn"
+              title="Open Settings → Keyboard Shortcuts"
+              onClick={openSettingsAtShortcuts}
+            >
+              ⚙ Settings
+            </button>
+            <button
+              type="button"
+              className="toolbar-collapse-btn"
+              title={isToolbarCollapsed ? 'Expand toolbar' : 'Collapse toolbar'}
+              onClick={() => setIsToolbarCollapsed((v) => !v)}
+            >
+              {isToolbarCollapsed ? '▼' : '▲'}
+            </button>
           </div>
-          <div className="toolbar-groups-container">
+          {!isToolbarCollapsed && <div className="toolbar-groups-container">
             {activeToolbarTab === 'style' && (
               <div className="toolbar-group">
                 <div className="toolbar-group-content">
@@ -3365,7 +3609,30 @@ function App() {
               </div>
             )}
 
-            {activeToolbarTab === 'actions' && (
+            {activeToolbarTab === 'shortcuts' && (
+              <div className="toolbar-group toolbar-shortcuts-panel">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                  <div className="toolbar-group-label">KEYBOARD SHORTCUTS</div>
+                  {isMac && (
+                    <span className="toolbar-fkey-note">
+                      💡 Mac: hold <kbd>Fn</kbd> for F-keys, or enable them in System Settings → Keyboard
+                    </span>
+                  )}
+                </div>
+                <div className="toolbar-shortcuts-table-wrap">
+                  {shortcutsTableSideBySide}
+                </div>
+                <button
+                  type="button"
+                  className="toolbar-shortcuts-edit-btn"
+                  onClick={openSettingsAtShortcuts}
+                >
+                  Edit Shortcuts in Settings →
+                </button>
+              </div>
+            )}
+
+            {activeToolbarTab === 'actions' && !isToolbarCollapsed && (
               <div className="toolbar-group">
                 <div className="toolbar-group-content">
                   <button
@@ -3435,7 +3702,7 @@ function App() {
                 </div>
               </div>
             )}
-          </div>
+          </div>}
         </header>
         {data.activeTab === null ? (
           <div className="empty-workspace">
