@@ -642,8 +642,11 @@ function ShortcutInputCell({
   }, [mode, onChange])
 
   const validateAndSave = (raw: string) => {
+    // Empty = clear the shortcut (it just won't fire)
     if (!raw.trim()) {
-      setError('Shortcut cannot be empty.')
+      setError(null)
+      onChange('')
+      setMode('idle')
       return
     }
     const canonical = parseShortcutInputToCanonical(raw)
@@ -669,14 +672,17 @@ function ShortcutInputCell({
 
   return (
     <div ref={wrapRef} className="shortcut-cell">
-      {mode === 'idle' && (
-        <button type="button" className="shortcut-display-btn" onClick={openChooser}>
-          {formatShortcutForDisplay(value)
-            ? <kbd>{formatShortcutForDisplay(value)}</kbd>
-            : <span className="shortcut-empty">— unset —</span>
-          }
-        </button>
-      )}
+      {/* Always show the current keybind; clicking opens the chooser */}
+      <button
+        type="button"
+        className={`shortcut-display-btn ${mode !== 'idle' ? 'shortcut-display-btn-active' : ''}`}
+        onClick={mode === 'idle' ? openChooser : undefined}
+      >
+        {formatShortcutForDisplay(value)
+          ? <kbd>{formatShortcutForDisplay(value)}</kbd>
+          : <span className="shortcut-empty">— unset —</span>
+        }
+      </button>
 
       {mode === 'chooser' && (
         <div className="shortcut-chooser">

@@ -562,6 +562,12 @@ button:disabled {
   background: var(--accent-bg);
 }
 
+.shortcut-display-btn-active {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+  cursor: default;
+}
+
 .shortcut-empty {
   opacity: 0.4;
   font-style: italic;
