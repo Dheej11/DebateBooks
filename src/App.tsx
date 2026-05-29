@@ -1521,16 +1521,25 @@ function App() {
 
   const applyTemplateStyleToCurrentBlock = (tag: string, styleKey: keyof EditorSettings['textStyles']) => {
     const selection = window.getSelection()
-    if (!selection || selection.rangeCount === 0) return
-    let node: Node | null = selection.getRangeAt(0).startContainer
-    while (node && node.nodeName.toLowerCase() !== tag) {
-      node = node.parentElement ?? null
+    if (!selection || selection.rangeCount === 0) {
+      setStatus('Select text or place cursor in a paragraph')
+      return
     }
-    if (node instanceof HTMLElement) {
-      const inlineStyle = buildTemplateInlineStyle(styleKey)
-      node.setAttribute('style', inlineStyle)
+
+    const range = selection.getRangeAt(0)
+    const container = range.commonAncestorContainer
+    const editorEl = editorRef.current?.contains(container)
+      ? editorRef.current
+      : speechEditorRef.current?.contains(container)
+        ? speechEditorRef.current
+        : null
+    if (!editorEl) return
+
+    // Find the active paragraph(s) in selection
+    let startNode: Node | null = range.startContainer
+    while (startNode && startNode.nodeName.toLowerCase() !== 'p' && startNode !== editorEl) {
+      startNode = startNode.parentElement ?? null
     }
-  }
 
   const applyStyleToRange = (
     range: Range,
@@ -1625,11 +1634,18 @@ function App() {
     setStatus('Tag applied')
   }
 
-  const applyHeading = (level: 1 | 2 | 3) => {
-    document.execCommand('formatBlock', false, `h${level}`)
-    const key = `heading${level}` as keyof EditorSettings['textStyles']
-    applyTemplateStyleToCurrentBlock(`h${level}`, key)
-    onEditorInput()
+  const handleEditorClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement
+    const p = target.closest('p') as HTMLElement | null
+    if (p && !p.querySelector('.tag-text')) {
+      const rect = p.getBoundingClientRect()
+      // If clicked near the far right edge of the paragraph where the copy button is shown in hover
+      if (event.clientX > rect.right - 80) {
+        event.preventDefault()
+        navigator.clipboard.writeText(p.innerText || '')
+        setStatus('Paragraph copied to clipboard')
+      }
+    }
   }
 
   const applyDefaultTextBlock = () => {
