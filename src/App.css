@@ -538,6 +538,194 @@ button:disabled {
 }
 .toolbar-shortcuts-edit-btn:hover { opacity: 0.75; }
 
+/* ── ShortcutInputCell ── */
+.shortcut-cell {
+  position: relative;
+  display: inline-block;
+}
+
+.shortcut-display-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 8px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text);
+  font-family: inherit;
+  transition: border-color 0.15s, background 0.15s;
+  min-width: 80px;
+  text-align: left;
+}
+.shortcut-display-btn:hover {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+
+.shortcut-empty {
+  opacity: 0.4;
+  font-style: italic;
+}
+
+/* Chooser dropdown */
+.shortcut-chooser {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 200;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 220px;
+  animation: fadeInPopover 0.12s ease;
+}
+
+.shortcut-current {
+  font-size: 11px;
+  color: var(--text);
+  opacity: 0.6;
+  margin-bottom: 2px;
+}
+
+.shortcut-mode-btn {
+  background: var(--sidebar);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: background 0.15s, border-color 0.15s;
+}
+.shortcut-mode-btn:hover {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+}
+.shortcut-mode-record {
+  color: #ef4444;
+  border-color: #ef444440;
+}
+.shortcut-mode-record:hover {
+  background: #ef444415;
+  border-color: #ef4444;
+}
+
+/* Editor (manual or record) */
+.shortcut-editor {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 200;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 240px;
+  animation: fadeInPopover 0.12s ease;
+}
+
+.shortcut-manual-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--sidebar);
+  color: var(--text);
+  font-family: monospace;
+  font-size: 13px;
+  outline: none;
+}
+.shortcut-manual-input:focus {
+  border-color: var(--accent-border);
+}
+
+.shortcut-error {
+  font-size: 12px;
+  color: #ef4444;
+  background: #ef444412;
+  border: 1px solid #ef444430;
+  border-radius: 6px;
+  padding: 5px 9px;
+  line-height: 1.4;
+}
+
+.shortcut-editor-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.shortcut-save-btn {
+  flex: 1;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 0.15s;
+}
+.shortcut-save-btn:hover { opacity: 0.85; }
+
+.shortcut-cancel-btn {
+  background: var(--sidebar);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--text);
+  cursor: pointer;
+  font-family: inherit;
+}
+.shortcut-cancel-btn:hover { border-color: var(--accent-border); }
+
+/* Record mode */
+.shortcut-record-mode { }
+
+.shortcut-recording-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  padding: 4px 0;
+}
+
+.shortcut-rec-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ef4444;
+  flex-shrink: 0;
+  animation: recPulse 1s infinite ease-in-out;
+}
+@keyframes recPulse {
+  0%, 100% { opacity: 0.4; transform: scale(0.8); }
+  50%       { opacity: 1;   transform: scale(1.2); box-shadow: 0 0 8px #ef4444; }
+}
+
+.shortcut-recorded-preview {
+  font-size: 14px;
+  text-align: center;
+  padding: 4px 0;
+}
+
 .toolbar-fkey-note {
   font-size: 11px;
   color: var(--text);

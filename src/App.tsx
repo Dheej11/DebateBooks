@@ -569,6 +569,185 @@ function parseAppData(raw: unknown): AppData {
   }
 }
 
+/* ── Keyboard shortcut keys that browsers reserve and cannot be overridden ── */
+const UNOVERRIDABLE_KEYS: Record<string, string> = {
+  f6:  'F6 moves focus to the browser address bar and cannot be overridden.',
+  f11: 'F11 toggles browser fullscreen and cannot be overridden.',
+  f12: 'F12 opens browser DevTools and cannot be overridden.',
+}
+
+function ShortcutInputCell({
+  value,
+  onChange,
+}: {
+  value: string
+  onChange: (canonical: string) => void
+}) {
+  const [mode, setMode] = useState<'idle' | 'chooser' | 'manual' | 'record'>('idle')
+  const [draft, setDraft] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  // Close on outside click
+  useEffect(() => {
+    if (mode === 'idle') return
+    const handle = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setMode('idle')
+        setError(null)
+      }
+    }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [mode])
+
+  // Record mode: capture the next key sequence
+  useEffect(() => {
+    if (mode !== 'record') return
+    const handle = (e: KeyboardEvent) => {
+      if (['Control', 'Meta', 'Shift', 'Alt'].includes(e.key)) return
+      e.preventDefault()
+      e.stopPropagation()
+
+      const parts: string[] = []
+      if (e.metaKey || e.ctrlKey) parts.push('Mod')
+      if (e.altKey) parts.push('Alt')
+      if (e.shiftKey) parts.push('Shift')
+      let key = e.key
+      if (key === ' ') key = 'Space'
+      parts.push(key)
+      const recorded = parts.join('+')
+      const keyLower = key.toLowerCase()
+
+      if (UNOVERRIDABLE_KEYS[keyLower]) {
+        setDraft(recorded)
+        setError(`This macro is not available! ${UNOVERRIDABLE_KEYS[keyLower]}`)
+        return
+      }
+
+      const canonical = parseShortcutInputToCanonical(recorded)
+      if (!parseShortcut(canonical)) {
+        setDraft(recorded)
+        setError('Invalid shortcut recorded. Try again.')
+        return
+      }
+
+      setError(null)
+      onChange(canonical)
+      setMode('idle')
+    }
+    window.addEventListener('keydown', handle, { capture: true })
+    return () => window.removeEventListener('keydown', handle, { capture: true })
+  }, [mode, onChange])
+
+  const validateAndSave = (raw: string) => {
+    if (!raw.trim()) {
+      setError('Shortcut cannot be empty.')
+      return
+    }
+    const canonical = parseShortcutInputToCanonical(raw)
+    const parsed = parseShortcut(canonical)
+    if (!parsed) {
+      setError('Invalid format. Use e.g. "F1", "Cmd+Shift+H", "Mod+B".')
+      return
+    }
+    if (UNOVERRIDABLE_KEYS[parsed.key.toLowerCase()]) {
+      setError(`This macro is not available! ${UNOVERRIDABLE_KEYS[parsed.key.toLowerCase()]}`)
+      return
+    }
+    setError(null)
+    onChange(canonical)
+    setMode('idle')
+  }
+
+  const openChooser = () => {
+    setDraft(formatShortcutForDisplay(value))
+    setError(null)
+    setMode('chooser')
+  }
+
+  return (
+    <div ref={wrapRef} className="shortcut-cell">
+      {mode === 'idle' && (
+        <button type="button" className="shortcut-display-btn" onClick={openChooser}>
+          {formatShortcutForDisplay(value)
+            ? <kbd>{formatShortcutForDisplay(value)}</kbd>
+            : <span className="shortcut-empty">— unset —</span>
+          }
+        </button>
+      )}
+
+      {mode === 'chooser' && (
+        <div className="shortcut-chooser">
+          <div className="shortcut-current">
+            Current: <kbd>{formatShortcutForDisplay(value) || 'unset'}</kbd>
+          </div>
+          <button
+            type="button"
+            className="shortcut-mode-btn"
+            onClick={() => { setMode('manual'); setTimeout(() => inputRef.current?.focus(), 30) }}
+          >
+            ✏️ Manually Change New Keybind
+          </button>
+          <button
+            type="button"
+            className="shortcut-mode-btn shortcut-mode-record"
+            onClick={() => { setDraft(''); setError(null); setMode('record') }}
+          >
+            ⏺ Record New Keybind
+          </button>
+          <button type="button" className="shortcut-cancel-btn" onClick={() => setMode('idle')}>
+            Cancel
+          </button>
+        </div>
+      )}
+
+      {mode === 'manual' && (
+        <div className="shortcut-editor">
+          <input
+            ref={inputRef}
+            type="text"
+            className="shortcut-manual-input"
+            value={draft}
+            placeholder='e.g. F1, Cmd+Shift+H'
+            onChange={(e) => { setDraft(e.target.value); setError(null) }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') { e.preventDefault(); validateAndSave(draft) }
+              if (e.key === 'Escape') { e.preventDefault(); setMode('idle'); setError(null) }
+            }}
+          />
+          {error && <div className="shortcut-error">{error}</div>}
+          <div className="shortcut-editor-actions">
+            <button type="button" className="shortcut-save-btn" onClick={() => validateAndSave(draft)}>Save</button>
+            <button type="button" className="shortcut-cancel-btn" onClick={() => { setMode('idle'); setError(null) }}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {mode === 'record' && (
+        <div className="shortcut-editor shortcut-record-mode">
+          <div className="shortcut-recording-indicator">
+            <span className="shortcut-rec-dot" />
+            Press your key combination…
+          </div>
+          {draft && <div className="shortcut-recorded-preview"><kbd>{draft}</kbd></div>}
+          {error && <div className="shortcut-error">{error}</div>}
+          {error && (
+            <button type="button" className="shortcut-mode-btn shortcut-mode-record" style={{ marginTop: '6px' }}
+              onClick={() => { setDraft(''); setError(null) }}>
+              ⏺ Try Again
+            </button>
+          )}
+          <button type="button" className="shortcut-cancel-btn" onClick={() => { setMode('idle'); setError(null) }}>
+            Cancel
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function App() {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
@@ -2212,12 +2391,9 @@ function App() {
           <tr key={shortcut.key}>
             <td>{shortcut.label}</td>
             <td>
-              <input
-                type="text"
-                value={formatShortcutForDisplay(data.settings.shortcuts[shortcut.key])}
-                onChange={(event) =>
-                  updateShortcutSetting(shortcut.key, parseShortcutInputToCanonical(event.target.value))
-                }
+              <ShortcutInputCell
+                value={data.settings.shortcuts[shortcut.key]}
+                onChange={(canonical) => updateShortcutSetting(shortcut.key, canonical)}
               />
             </td>
           </tr>
@@ -2239,12 +2415,9 @@ function App() {
               <tr key={shortcut.key}>
                 <td>{shortcut.label}</td>
                 <td>
-                  <input
-                    type="text"
-                    value={formatShortcutForDisplay(data.settings.shortcuts[shortcut.key])}
-                    onChange={(event) =>
-                      updateShortcutSetting(shortcut.key, parseShortcutInputToCanonical(event.target.value))
-                    }
+                  <ShortcutInputCell
+                    value={data.settings.shortcuts[shortcut.key]}
+                    onChange={(canonical) => updateShortcutSetting(shortcut.key, canonical)}
                   />
                 </td>
               </tr>
