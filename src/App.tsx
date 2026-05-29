@@ -1,7 +1,6 @@
 import {
   type ChangeEventHandler,
   type CSSProperties,
-  type KeyboardEventHandler,
   type ReactElement,
   type MouseEvent as ReactMouseEvent,
   useCallback,
@@ -82,6 +81,7 @@ type ShortcutAction =
   | 'defaultText'
   | 'condense'
   | 'sendToSpeech'
+  | 'clearFormatting'
 
 interface TextStyleSetting {
   fontSize: number
@@ -114,15 +114,54 @@ const appThemes: Array<{ id: string; label: string }> = [
   { id: 'classic',  label: 'Debate Classic' },
 ]
 
+interface HeadingColorPreset {
+  label: string
+  description: string
+  colors: {
+    heading1: string
+    heading2: string
+    heading3: string
+    tag: string
+    defaultText: string
+  }
+}
+
+const getDefaultColorForTheme = (_theme: string, key: string): string => {
+  // Since the main text editor box must stay as white, all default template colors
+  // must be light-theme (dark text) for readability on a white background.
+  if (key === 'defaultText') {
+    return '#374151'
+  }
+  return '#111827'
+}
+
+const lightPresets: HeadingColorPreset[] = [
+  { label: 'Theme Default', description: 'Clean adaptive colors that follow the theme', colors: { heading1: '', heading2: '', heading3: '', tag: '', defaultText: '' } },
+  { label: 'Vibrant Purple', description: 'Royal purple tones', colors: { heading1: '#7c3aed', heading2: '#8b5cf6', heading3: '#a78bfa', tag: '#7c3aed', defaultText: '#374151' } },
+  { label: 'Warm Amber', description: 'Warm amber and orange hierarchy', colors: { heading1: '#b45309', heading2: '#d97706', heading3: '#92400e', tag: '#b45309', defaultText: '#374151' } },
+  { label: 'Ocean Blue', description: 'Cool blue and cyan tones', colors: { heading1: '#1d4ed8', heading2: '#2563eb', heading3: '#3b82f6', tag: '#1d4ed8', defaultText: '#374151' } },
+  { label: 'Forest Green', description: 'Fresh green and leaf tones', colors: { heading1: '#16a34a', heading2: '#22c55e', heading3: '#86efac', tag: '#16a34a', defaultText: '#374151' } },
+]
+
+const headingColorPresets: Record<string, HeadingColorPreset[]> = {
+  dark: lightPresets,
+  midnight: lightPresets,
+  slate: lightPresets,
+  forest: lightPresets,
+  light: lightPresets,
+  sepia: lightPresets,
+  classic: lightPresets,
+}
+
 const defaultSettings: EditorSettings = {
   theme: 'dark',
   defaultFont: 'Arial',
   textStyles: {
     defaultText: { fontSize: 15, style: 'normal', color: '', align: 'left' },
-    tag:      { fontSize: 16, style: 'bold', color: '#111827', align: 'left' },
-    heading1: { fontSize: 34, style: 'bold', color: '#111827', align: 'left' },
-    heading2: { fontSize: 26, style: 'bold', color: '#111827', align: 'left' },
-    heading3: { fontSize: 20, style: 'bold', color: '#111827', align: 'left' },
+    tag:      { fontSize: 16, style: 'bold', color: '', align: 'left' },
+    heading1: { fontSize: 34, style: 'bold', color: '', align: 'left' },
+    heading2: { fontSize: 26, style: 'bold', color: '', align: 'left' },
+    heading3: { fontSize: 20, style: 'bold', color: '', align: 'left' },
   },
   defaultHighlightColor: '#fff59d',
   shortcuts: {
@@ -133,12 +172,13 @@ const defaultSettings: EditorSettings = {
     boldUnderlineHighlight: 'Mod+Shift+J',
     pasteAsDefaultText: 'Mod+Shift+V',
     tagText: 'Mod+Shift+T',
-    heading1: 'Mod+Alt+1',
-    heading2: 'Mod+Alt+2',
-    heading3: 'Mod+Alt+3',
-    defaultText: 'Mod+Alt+0',
+    heading1: 'Mod+Shift+1',
+    heading2: 'Mod+Shift+2',
+    heading3: 'Mod+Shift+3',
+    defaultText: 'Mod+Shift+0',
     condense: 'Mod+Shift+C',
     sendToSpeech: 'Mod+Shift+S',
+    clearFormatting: 'Mod+Space',
   },
 }
 
@@ -179,32 +219,16 @@ const colorChoices = [
   '#b91c1c',
 ]
 
-const textColorOptions: Array<{ label: string; value: string }> = [
-  { label: 'Default (Black)', value: '#111827' },
-  { label: 'Dark Gray', value: '#374151' },
-  { label: 'Gray', value: '#6b7280' },
-  { label: 'White', value: '#ffffff' },
-  { label: 'Blue', value: '#1d4ed8' },
-  { label: 'Dark Blue', value: '#1e3a8a' },
-  { label: 'Red', value: '#b91c1c' },
-  { label: 'Dark Red', value: '#7c2d12' },
-  { label: 'Green', value: '#16a34a' },
-  { label: 'Dark Green', value: '#166534' },
-  { label: 'Purple', value: '#7c3aed' },
-  { label: 'Dark Purple', value: '#6b21a8' },
-  { label: 'Orange', value: '#ea580c' },
-  { label: 'Brown', value: '#92400e' },
-]
+
 
 const highlightColorOptions: Array<{ label: string; value: string }> = [
-  { label: 'Yellow', value: '#fef08a' },
-  { label: 'Green', value: '#bbf7d0' },
-  { label: 'Blue', value: '#bfdbfe' },
-  { label: 'Pink', value: '#fbcfe8' },
-  { label: 'Orange', value: '#fed7aa' },
-  { label: 'Purple', value: '#ddd6fe' },
-  { label: 'Red', value: '#fecaca' },
-  { label: 'Cyan', value: '#a5f3fc' },
+  { label: '#ffff00', value: '#ffff00' }, // Neon Yellow
+  { label: '#00ff00', value: '#00ff00' }, // Neon Green
+  { label: '#00ffff', value: '#00ffff' }, // Neon Cyan
+  { label: '#ff00ff', value: '#ff00ff' }, // Neon Pink
+  { label: '#ffaa00', value: '#ffaa00' }, // Neon Orange
+  { label: '#cc99ff', value: '#cc99ff' }, // Neon Purple
+  { label: '#ff4d4d', value: '#ff4d4d' }, // Neon Red
   { label: 'None', value: 'transparent' },
 ]
 
@@ -287,6 +311,7 @@ const shortcutGroups: Array<{
   { key: 'defaultText', label: 'Set text to Default Text' },
   { key: 'condense', label: 'Condense' },
   { key: 'sendToSpeech', label: 'Send to Speech' },
+  { key: 'clearFormatting', label: 'Clear Formatting' },
 ]
 
 interface ParsedShortcut {
@@ -316,6 +341,36 @@ const normalizeKey = (value: string) => {
     return 'right'
   }
   return lowered
+}
+
+const colorToVarMap: Record<string, string> = {
+  '#374151': 'var(--color-dark-gray)',
+  '#6b7280': 'var(--color-gray)',
+  '#ffffff': 'var(--color-white)',
+  '#1d4ed8': 'var(--color-blue)',
+  '#1e3a8a': 'var(--color-dark-blue)',
+  '#b91c1c': 'var(--color-red)',
+  '#7c2d12': 'var(--color-dark-red)',
+  '#16a34a': 'var(--color-green)',
+  '#166534': 'var(--color-dark-green)',
+  '#7c3aed': 'var(--color-purple)',
+  '#6b21a8': 'var(--color-dark-purple)',
+  '#ea580c': 'var(--color-orange)',
+  '#92400e': 'var(--color-brown)',
+}
+
+const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '')
+
+const formatShortcutForDisplay = (shortcut: string): string => {
+  if (!shortcut) return ''
+  const modifier = isMac ? 'Cmd' : 'Ctrl'
+  return shortcut.replace(/\bMod\b/gi, modifier)
+}
+
+const parseShortcutInputToCanonical = (value: string): string => {
+  if (!value) return ''
+  const modifier = isMac ? /\bCmd\b/gi : /\bCtrl\b/gi
+  return value.replace(modifier, 'Mod')
 }
 
 const parseShortcut = (value: string): ParsedShortcut | null => {
@@ -356,7 +411,22 @@ const parseShortcut = (value: string): ParsedShortcut | null => {
   return parsed.key ? parsed : null
 }
 
-type AnyKeyEvent = { key: string; metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey: boolean }
+const getKeyFromCode = (code: string, fallbackKey: string): string => {
+  if (!code) return fallbackKey.toLowerCase()
+  if (code.startsWith('Digit')) return code.substring(5)
+  if (code.startsWith('Key')) return code.substring(3).toLowerCase()
+  if (code.startsWith('Numpad') && code.length === 7) return code.substring(6)
+  return fallbackKey.toLowerCase()
+}
+
+type AnyKeyEvent = {
+  key: string
+  code?: string
+  metaKey: boolean
+  ctrlKey: boolean
+  shiftKey: boolean
+  altKey: boolean
+}
 
 const matchesShortcut = (
   event: AnyKeyEvent,
@@ -367,13 +437,18 @@ const matchesShortcut = (
     return false
   }
 
-  const eventKey = normalizeKey(event.key)
-  if (eventKey !== parsed.key) {
+  const resolvedKey = normalizeKey(getKeyFromCode(event.code || '', event.key))
+  const parsedKey = normalizeKey(parsed.key)
+
+  if (resolvedKey !== parsedKey) {
     return false
   }
 
-  if (parsed.mod && !(event.metaKey || event.ctrlKey)) {
-    return false
+  if (parsed.mod) {
+    const hasModKey = isMac ? event.metaKey : event.ctrlKey
+    if (!hasModKey) {
+      return false
+    }
   }
 
   if (!parsed.mod && parsed.ctrl !== event.ctrlKey) {
@@ -466,10 +541,21 @@ function parseAppData(raw: unknown): AppData {
       settings: {
         ...defaultSettings,
         ...(parsed.settings ?? {}),
-        textStyles: {
-          ...defaultSettings.textStyles,
-          ...(parsed.settings?.textStyles ?? {}),
-        },
+        textStyles: (() => {
+          const styles = {
+            ...defaultSettings.textStyles,
+            ...(parsed.settings?.textStyles ?? {}),
+          }
+          for (const key of ['heading1', 'heading2', 'heading3', 'tag', 'defaultText'] as const) {
+            if (styles[key] && (styles[key].color === '#111827' || styles[key].color === '#1f2937' || styles[key].color === 'var(--color-dark-gray)')) {
+              styles[key] = {
+                ...styles[key],
+                color: '',
+              }
+            }
+          }
+          return styles
+        })(),
         shortcuts: {
           ...defaultSettings.shortcuts,
           ...(parsed.settings?.shortcuts ?? {}),
@@ -489,6 +575,11 @@ function App() {
   const [dataLoading, setDataLoading] = useState(true)
 
   const [invisibilityMode, setInvisibilityMode] = useState(false)
+  const [isOutlineOpen, setIsOutlineOpen] = useState(false)
+  const [outlineMaxLevel, setOutlineMaxLevel] = useState<1 | 2 | 3>(3)
+  const [showTextColorPicker, setShowTextColorPicker] = useState(false)
+  const [showHighlightColorPicker, setShowHighlightColorPicker] = useState(false)
+  const [editorWordCount, setEditorWordCount] = useState(0)
   const [status, setStatus] = useState('Ready')
   const [leftPanelView, setLeftPanelView] = useState<LeftPanelView>('files')
   const [fileSearchQuery, setFileSearchQuery] = useState('')
@@ -516,6 +607,7 @@ function App() {
     y: number
   } | null>(null)
   const [activeEditorTarget, setActiveEditorTarget] = useState<PrimaryView>('debate')
+  const [activeToolbarTab, setActiveToolbarTab] = useState<'style' | 'headings' | 'actions'>('style')
   const editorRef = useRef<HTMLDivElement | null>(null)
   const speechEditorRef = useRef<HTMLDivElement | null>(null)
   const savedSelectionRef = useRef<Range | null>(null)
@@ -587,6 +679,12 @@ function App() {
       try { setData(parseAppData(JSON.parse(cached))) } catch { /* ignore */ }
     }
 
+    if (!import.meta.env.VITE_FIREBASE_API_KEY) {
+      setDataLoading(false)
+      setStatus('Saved locally (Offline/Mock Mode)')
+      return
+    }
+
     // Then fetch from Firestore and upgrade if cloud data exists.
     const docRef = doc(db, 'users', user.uid, 'data', 'appData')
     getDoc(docRef)
@@ -644,7 +742,7 @@ function App() {
 
   // Save: write to localStorage immediately + Firestore after 1.5 s debounce.
   const saveToFirestore = useCallback(async (payload: AppData) => {
-    if (!user) return
+    if (!user || !import.meta.env.VITE_FIREBASE_API_KEY) return
     const docRef = doc(db, 'users', user.uid, 'data', 'appData')
     await setDoc(docRef, payload)
     setStatus('Saved to cloud ☁')
@@ -777,6 +875,28 @@ function App() {
     return () => window.removeEventListener('click', dismissContextMenu)
   }, [])
 
+  useEffect(() => {
+    const handleSelectionChange = () => {
+      const selection = window.getSelection()
+      if (!selection || selection.rangeCount === 0) return
+
+      const range = selection.getRangeAt(0)
+      const container = range.commonAncestorContainer
+
+      const isInDebate = editorRef.current?.contains(container)
+      const isInSpeech = speechEditorRef.current?.contains(container)
+
+      if (isInDebate || isInSpeech) {
+        savedSelectionRef.current = range.cloneRange()
+      }
+    }
+
+    document.addEventListener('selectionchange', handleSelectionChange)
+    return () => {
+      document.removeEventListener('selectionchange', handleSelectionChange)
+    }
+  }, [])
+
   // Keep a stable ref to runShortcutAction so the capture listener never goes stale.
   const runShortcutActionRef = useRef<((action: ShortcutAction) => void) | null>(null)
 
@@ -826,12 +946,17 @@ function App() {
     }
   }, [data.activeTab])
 
+
+
   useEffect(() => {
-    const hasOpenSpeechTab = data.openTabs.some((tab) => tab.type === 'speech')
-    if (!hasOpenSpeechTab && isSplitView) {
-      setIsSplitView(false)
+    const editor = activeEditorTarget === 'speech' ? speechEditorRef.current : editorRef.current
+    if (editor) {
+      const text = editor.innerText || ''
+      setEditorWordCount(text.trim() ? text.trim().split(/\s+/).length : 0)
+    } else {
+      setEditorWordCount(0)
     }
-  }, [data.openTabs, isSplitView])
+  }, [data.activeTab, activeEditorTarget, data.debateDocs, data.speechDocs])
 
   const mutateActiveDebateDoc = (updater: (doc: DebateDocument) => void) => {
     setData((previous) => {
@@ -879,7 +1004,8 @@ function App() {
       `text-decoration: ${css.textDecoration}`,
     ]
     if (ts.color) {
-      parts.push(`color: ${ts.color}`)
+      const resolvedColor = colorToVarMap[ts.color] || ts.color
+      parts.push(`color: ${resolvedColor}`)
     }
     if ('align' in ts && ts.align) {
       parts.push(`text-align: ${ts.align}`)
@@ -970,8 +1096,21 @@ function App() {
     value?: string,
   ) => {
     const targetEditor = getActiveEditorElement()
-    targetEditor?.focus()
+    if (!targetEditor) return
+    targetEditor.focus()
+
+    const selection = window.getSelection()
+    if (selection && savedSelectionRef.current) {
+      selection.removeAllRanges()
+      selection.addRange(savedSelectionRef.current)
+    }
+
     document.execCommand(command, false, value)
+    
+    if (selection && selection.rangeCount > 0) {
+      savedSelectionRef.current = selection.getRangeAt(0).cloneRange()
+    }
+
     if (activeEditorTarget === 'speech') {
       onSpeechEditorInput()
     } else {
@@ -990,8 +1129,207 @@ function App() {
     onEditorInput()
   }
 
-  // After execCommand('formatBlock') the caret is inside the new block element.
-  // Walk up from the current selection to find it and apply template inline styles.
+  const shrinkUncutText = () => {
+    const selection = window.getSelection()
+    if (!selection || selection.rangeCount === 0) {
+      setStatus('Select text or place cursor in a paragraph')
+      return
+    }
+
+    const range = selection.getRangeAt(0)
+    const container = range.commonAncestorContainer
+    const editorEl = editorRef.current?.contains(container)
+      ? editorRef.current
+      : speechEditorRef.current?.contains(container)
+        ? speechEditorRef.current
+        : null
+    if (!editorEl) return
+
+    // Find the active paragraph(s) in selection
+    let startNode: Node | null = range.startContainer
+    while (startNode && startNode.nodeName.toLowerCase() !== 'p' && startNode !== editorEl) {
+      startNode = startNode.parentElement ?? null
+    }
+
+    let endNode: Node | null = range.endContainer
+    while (endNode && endNode.nodeName.toLowerCase() !== 'p' && endNode !== editorEl) {
+      endNode = endNode.parentElement ?? null
+    }
+
+    const paragraphs: HTMLElement[] = []
+    if (startNode && startNode.nodeName.toLowerCase() === 'p') {
+      paragraphs.push(startNode as HTMLElement)
+    }
+    if (endNode && endNode.nodeName.toLowerCase() === 'p' && endNode !== startNode) {
+      paragraphs.push(endNode as HTMLElement)
+    }
+
+    // If no paragraph found containing cursor, fallback to all paragraphs intersecting selection
+    if (paragraphs.length === 0) {
+      editorEl.querySelectorAll('p').forEach((p) => {
+        if (range.intersectsNode(p)) {
+          paragraphs.push(p)
+        }
+      })
+    }
+
+    if (paragraphs.length === 0) {
+      setStatus('No paragraphs found to shrink')
+      return
+    }
+
+    // Process each paragraph
+    paragraphs.forEach((p) => {
+      // Helper function to recursively process nodes and wrap uncut text
+      const processNode = (node: Node): Node[] => {
+        // If node is a text node and contains text
+        if (node.nodeType === Node.TEXT_NODE) {
+          if (!node.textContent?.trim()) {
+            return [node]
+          }
+          // It is uncut! Wrap it in a span
+          const span = document.createElement('span')
+          span.className = 'uncut-text'
+          span.setAttribute('style', 'font-size: 10px; opacity: 0.5; font-weight: normal; font-style: normal; text-decoration: none;')
+          span.appendChild(node.cloneNode(true))
+          return [span]
+        }
+
+        if (node instanceof HTMLElement) {
+          const tagName = node.tagName.toLowerCase()
+          // Check if this element represents bold, underline, or highlight
+          const isBold = tagName === 'b' || tagName === 'strong' || node.style.fontWeight === 'bold' || parseInt(node.style.fontWeight, 10) >= 600
+          const isUnderlined = tagName === 'u' || node.style.textDecoration.includes('underline')
+          const isHighlighted = node.style.backgroundColor && node.style.backgroundColor !== 'transparent'
+
+          if (isBold || isUnderlined || isHighlighted) {
+            // This is "cut" text, do not shrink!
+            return [node]
+          }
+
+          // If it is a span that is already uncut, or another element, process children
+          const children = Array.from(node.childNodes)
+          const newChildren: Node[] = []
+          children.forEach((child) => {
+            newChildren.push(...processNode(child))
+          })
+
+          // Rebuild node with new children
+          node.innerHTML = ''
+          newChildren.forEach((child) => node.appendChild(child))
+          return [node]
+        }
+
+        return [node]
+      }
+
+      const children = Array.from(p.childNodes)
+      p.innerHTML = ''
+      children.forEach((child) => {
+        processNode(child).forEach((newChild) => p.appendChild(newChild))
+      })
+    })
+
+    if (editorEl === editorRef.current) onEditorInput()
+    else onSpeechEditorInput()
+    setStatus('Uncut text shrunk')
+  }
+
+  const handleEditorKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Enter') {
+      const selection = window.getSelection()
+      if (!selection || selection.rangeCount === 0) return
+
+      let node: Node | null = selection.getRangeAt(0).startContainer
+      // Traversal upwards to find the block element containing the caret
+      while (node && node !== event.currentTarget) {
+        const nodeName = node.nodeName.toLowerCase()
+        if (nodeName === 'h1' || nodeName === 'h2' || nodeName === 'h3') {
+          // Caret is inside a heading!
+          // We want the new line to go to defaultText style (i.e. normal paragraph)
+          event.preventDefault()
+          
+          // Let's insert a paragraph node with default inline styles after the heading
+          const p = document.createElement('p')
+          p.setAttribute('style', buildTemplateInlineStyle('defaultText'))
+          p.innerHTML = '<br>' // placeholder for cursor insertion
+
+          // Find the exact heading element in the DOM
+          const headingElement = node as HTMLElement
+          
+          // Insert after the heading
+          headingElement.insertAdjacentElement('afterend', p)
+          
+          // Move caret into the new paragraph
+          const newRange = document.createRange()
+          newRange.setStart(p, 0)
+          newRange.setEnd(p, 0)
+          selection.removeAllRanges()
+          selection.addRange(newRange)
+          
+          // Focus and trigger inputs
+          event.currentTarget.focus()
+          if (activeEditorTarget === 'speech') {
+            onSpeechEditorInput()
+          } else {
+            onEditorInput()
+          }
+          return
+        }
+        node = node.parentNode ?? null
+      }
+    }
+  }
+
+  const handleEditorClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement
+    const p = target.closest('p') as HTMLElement | null
+    if (p && !p.querySelector('.tag-text')) {
+      const rect = p.getBoundingClientRect()
+      // If clicked near the far right edge of the paragraph where the copy button is shown in hover
+      if (event.clientX > rect.right - 80) {
+        event.preventDefault()
+        navigator.clipboard.writeText(p.innerText || '')
+        setStatus('Paragraph copied to clipboard')
+      }
+    }
+  }
+
+  const getHeadingsFromHtml = (htmlContent: string) => {
+    const parser = new DOMParser()
+    const doc = parser.parseFromString(htmlContent || '', 'text/html')
+    const headings: Array<{ id: string; text: string; level: number; index: number }> = []
+    doc.querySelectorAll('h1, h2, h3').forEach((el, index) => {
+      let id = el.getAttribute('id')
+      if (!id) {
+        id = `heading-${index}`
+      }
+      headings.push({
+        id,
+        text: el.textContent || 'Untitled Heading',
+        level: parseInt(el.tagName.substring(1), 10),
+        index,
+      })
+    })
+    return headings
+  }
+
+  const jumpToHeading = (index: number) => {
+    const targetEditor = activeEditorTarget === 'speech' ? speechEditorRef.current : editorRef.current
+    if (targetEditor) {
+      const headings = targetEditor.querySelectorAll('h1, h2, h3')
+      if (headings[index]) {
+        headings[index].scrollIntoView({ behavior: 'smooth', block: 'center' })
+        const el = headings[index] as HTMLElement
+        el.style.transition = 'background-color 0.2s'
+        el.style.backgroundColor = 'var(--accent-bg)'
+        setTimeout(() => {
+          el.style.backgroundColor = ''
+        }, 1000)
+      }
+    }
+  }
+
   const applyTemplateStyleToCurrentBlock = (tag: string, styleKey: keyof EditorSettings['textStyles']) => {
     const selection = window.getSelection()
     if (!selection || selection.rangeCount === 0) return
@@ -1005,29 +1343,97 @@ function App() {
     }
   }
 
-  const applyTagStyle = () => {
-    const selection = window.getSelection()
-    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
-      return
-    }
+  const applyStyleToRange = (
+    range: Range,
+    styleUpdater: (span: HTMLSpanElement) => void,
+  ): boolean => {
+    if (range.collapsed) return false
 
-    const range = selection.getRangeAt(0)
-    const wrapper = document.createElement('span')
-    wrapper.className = 'tag-text'
-    wrapper.setAttribute('style', buildTemplateInlineStyle('tag'))
+    const container = range.commonAncestorContainer
+    const isInDebate = editorRef.current?.contains(container)
+    const isInSpeech = speechEditorRef.current?.contains(container)
+
+    if (!isInDebate && !isInSpeech) return false
+    const targetEditor = isInDebate ? editorRef.current : speechEditorRef.current
 
     try {
-      const content = range.extractContents()
-      wrapper.appendChild(content)
-      range.insertNode(wrapper)
-      selection.removeAllRanges()
-      const postRange = document.createRange()
-      postRange.selectNodeContents(wrapper)
-      selection.addRange(postRange)
-      onEditorInput()
-    } catch {
-      // Ignore invalid partial selections that cannot be wrapped.
+      const textNodes: Text[] = []
+      const walkerRoot = container.nodeType === Node.TEXT_NODE
+        ? (container.parentElement ?? targetEditor!)
+        : (container as Element)
+
+      const walker = document.createTreeWalker(walkerRoot, NodeFilter.SHOW_TEXT)
+      let node = walker.nextNode()
+      while (node) {
+        if (range.intersectsNode(node)) {
+          textNodes.push(node as Text)
+        }
+        node = walker.nextNode()
+      }
+
+      let firstNode: Node | null = null
+      let lastNode: Node | null = null
+
+      for (const tNode of textNodes) {
+        if (!tNode.textContent) continue
+
+        let targetNode = tNode
+        
+        if (targetNode === range.startContainer && range.startOffset > 0) {
+          targetNode = targetNode.splitText(range.startOffset)
+        }
+        
+        if (targetNode === range.endContainer && range.endOffset < targetNode.length) {
+          targetNode.splitText(range.endOffset)
+        }
+
+        const span = document.createElement('span')
+        styleUpdater(span)
+
+        if (targetNode.parentNode) {
+          targetNode.parentNode.insertBefore(span, targetNode)
+          span.appendChild(targetNode)
+          
+          if (!firstNode) firstNode = span.firstChild
+          lastNode = span.firstChild
+        }
+      }
+
+      targetEditor?.focus()
+
+      if (firstNode && lastNode) {
+        const selection = window.getSelection()
+        if (selection) {
+          selection.removeAllRanges()
+          const newRange = document.createRange()
+          newRange.setStart(firstNode, 0)
+          newRange.setEnd(lastNode, lastNode.textContent?.length || 0)
+          selection.addRange(newRange)
+          savedSelectionRef.current = newRange.cloneRange()
+        }
+      }
+
+      if (isInDebate) onEditorInput()
+      else onSpeechEditorInput()
+
+      return true
+    } catch (e) {
+      console.error(e)
+      return false
     }
+  }
+
+  const applyTagStyle = () => {
+    const saved = savedSelectionRef.current
+    if (!saved || saved.collapsed) {
+      setStatus('Select text to tag')
+      return
+    }
+    applyStyleToRange(saved, (span) => {
+      span.className = 'tag-text'
+      span.setAttribute('style', buildTemplateInlineStyle('tag'))
+    })
+    setStatus('Tag applied')
   }
 
   const applyHeading = (level: 1 | 2 | 3) => {
@@ -1040,84 +1446,162 @@ function App() {
   const applyDefaultTextBlock = () => {
     document.execCommand('formatBlock', false, 'p')
     applyTemplateStyleToCurrentBlock('p', 'defaultText')
-    onEditorInput()
+
+    const selection = window.getSelection()
+    if (selection && selection.rangeCount > 0) {
+      let node: Node | null = selection.getRangeAt(0).startContainer
+      while (node && node.nodeName.toLowerCase() !== 'p') {
+        node = node.parentElement ?? null
+      }
+      if (node instanceof HTMLElement) {
+        node.style.color = ''
+        const nested = node.querySelectorAll('*')
+        nested.forEach((el) => {
+          if (el instanceof HTMLElement) {
+            el.style.color = ''
+            if (!el.style.cssText.trim() && !el.className) {
+              el.replaceWith(...Array.from(el.childNodes))
+            }
+          }
+        })
+      }
+    }
+
+    if (activeEditorTarget === 'speech') {
+      onSpeechEditorInput()
+    } else {
+      onEditorInput()
+    }
   }
 
-  // Core routine: apply an inline style wrapper to a specific Range.
-  // Works even when the editor has lost focus (e.g. after the OS color picker closes).
-  const applyStyleToRange = (
-    range: Range,
-    styleUpdater: (span: HTMLSpanElement) => void,
-  ): boolean => {
-    if (range.collapsed) return false
-
-    const container = range.commonAncestorContainer
-    const isInDebate = editorRef.current?.contains(container)
-    const isInSpeech = speechEditorRef.current?.contains(container)
-
-    if (!isInDebate && !isInSpeech) return false
-
-    const wrapper = document.createElement('span')
-    styleUpdater(wrapper)
-
-    try {
-      const content = range.extractContents()
-      wrapper.appendChild(content)
-      range.insertNode(wrapper)
-
-      // Re-select the wrapped content so the user sees it selected.
+  const applyTextColor = (color: string) => {
+    const saved = savedSelectionRef.current
+    const targetEditor = getActiveEditorElement()
+    if (!targetEditor) return
+    targetEditor.focus()
+    
+    const resolvedColor = colorToVarMap[color] || color
+    
+    if (saved && !saved.collapsed) {
+      applyStyleToRange(saved, (span) => {
+        if (color === '') {
+          span.style.color = ''
+        } else {
+          span.style.color = resolvedColor
+        }
+      })
+      setStatus('Text color applied')
+    } else if (saved) {
+      const span = document.createElement('span')
+      if (color !== '') span.style.color = resolvedColor
+      span.innerHTML = '&#8203;'
+      saved.insertNode(span)
+      
       const selection = window.getSelection()
       if (selection) {
         selection.removeAllRanges()
-        const postRange = document.createRange()
-        postRange.selectNodeContents(wrapper)
-        selection.addRange(postRange)
-        savedSelectionRef.current = postRange.cloneRange()
+        const newRange = document.createRange()
+        newRange.setStart(span.firstChild!, 1)
+        newRange.collapse(true)
+        selection.addRange(newRange)
+        savedSelectionRef.current = newRange.cloneRange()
       }
-
-      if (isInDebate) onEditorInput()
-      else onSpeechEditorInput()
-
-      return true
-    } catch {
-      return false
     }
   }
 
-  const applyInlineStyleToSelection = (
-    styleUpdater: (span: HTMLSpanElement) => void,
-    emptySelectionMessage: string,
-  ) => {
+  const applyTextSize = (size: number) => {
+    const saved = savedSelectionRef.current
+    const targetEditor = getActiveEditorElement()
+    if (!targetEditor) return
+    targetEditor.focus()
+    
+    if (saved && !saved.collapsed) {
+      applyStyleToRange(saved, (span) => {
+        span.style.fontSize = `${size}px`
+      })
+      setStatus(`Applied ${size}px text size`)
+    } else if (saved) {
+      const span = document.createElement('span')
+      span.style.fontSize = `${size}px`
+      span.innerHTML = '&#8203;'
+      saved.insertNode(span)
+      
+      const selection = window.getSelection()
+      if (selection) {
+        selection.removeAllRanges()
+        const newRange = document.createRange()
+        newRange.setStart(span.firstChild!, 1)
+        newRange.collapse(true)
+        selection.addRange(newRange)
+        savedSelectionRef.current = newRange.cloneRange()
+      }
+    }
+  }
+
+  const clearFormatting = () => {
+    const saved = savedSelectionRef.current
+    const targetEditor = getActiveEditorElement()
+    if (!targetEditor) return
+    targetEditor.focus()
+
     const selection = window.getSelection()
-    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
-      setStatus(emptySelectionMessage)
-      return false
+    if (selection && saved) {
+      selection.removeAllRanges()
+      selection.addRange(saved)
     }
-    const ok = applyStyleToRange(selection.getRangeAt(0), styleUpdater)
-    if (!ok) setStatus('Unable to apply style to selected text')
-    return ok
+
+    document.execCommand('removeFormat', false)
+
+    if (saved && !saved.collapsed) {
+      try {
+        const container = saved.commonAncestorContainer
+        const walkerRoot = container.nodeType === Node.TEXT_NODE
+          ? (container.parentElement ?? targetEditor)
+          : (container as Element)
+
+        const walker = document.createTreeWalker(walkerRoot, NodeFilter.SHOW_ELEMENT)
+        const spansToRemove: HTMLSpanElement[] = []
+        
+        let node = walker.nextNode()
+        while (node) {
+          if (node.nodeName.toLowerCase() === 'span' && saved.intersectsNode(node)) {
+            spansToRemove.push(node as HTMLSpanElement)
+          }
+          node = walker.nextNode()
+        }
+
+        for (const span of spansToRemove) {
+          span.replaceWith(...Array.from(span.childNodes))
+        }
+
+        // Apply default text size to the selection range on clear formatting!
+        const defaultSize = data.settings.textStyles.defaultText.fontSize
+        applyStyleToRange(saved, (span) => {
+          span.style.fontSize = `${defaultSize}px`
+          span.style.color = ''
+          span.style.backgroundColor = ''
+        })
+      } catch (e) {
+        console.error(e)
+      }
+    }
+
+    if (activeEditorTarget === 'speech') {
+      onSpeechEditorInput()
+    } else {
+      onEditorInput()
+    }
+    setStatus('Formatting cleared')
   }
 
-  const applyHighlightColorToSelection = (color: string) =>
-    applyInlineStyleToSelection(
-      (wrapper) => { wrapper.style.backgroundColor = color },
-      'Select text to apply highlight',
-    )
-
-  // Toggle highlight on the current selection.
-  // Detection is done by finding spans with inline background-color that intersect the
-  // range, then checking if every text node in the range is covered by one of those spans.
-  // Removal clears background-color directly on those spans — never wraps with "transparent"
-  // (which would sit inside the colored span and have no visual effect).
   const toggleHighlightOnSelection = (color: string) => {
-    const selection = window.getSelection()
-    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+    const saved = savedSelectionRef.current
+    if (!saved || saved.collapsed) {
       setStatus('Select text to toggle highlight')
       return
     }
-
-    const range = selection.getRangeAt(0)
-    const container = range.commonAncestorContainer
+    
+    const container = saved.commonAncestorContainer
     const editorEl = editorRef.current?.contains(container)
       ? editorRef.current
       : speechEditorRef.current?.contains(container)
@@ -1125,18 +1609,15 @@ function App() {
         : null
     if (!editorEl) return
 
-    // Collect every span with an inline background-color that overlaps the selection.
     const highlightSpans = Array.from(
       editorEl.querySelectorAll<HTMLSpanElement>('span[style]'),
     ).filter(
       (span) =>
         span.style.backgroundColor &&
         span.style.backgroundColor !== 'transparent' &&
-        range.intersectsNode(span),
+        saved.intersectsNode(span),
     )
 
-    // Walk every text node in the range. If all are contained inside one of the
-    // highlight spans, treat the selection as "all highlighted".
     const walkerRoot =
       container.nodeType === Node.TEXT_NODE
         ? (container.parentElement ?? editorEl)
@@ -1148,7 +1629,7 @@ function App() {
 
     let node = walker.nextNode()
     while (node) {
-      if (range.intersectsNode(node) && node.textContent?.trim()) {
+      if (saved.intersectsNode(node) && node.textContent?.trim()) {
         hasText = true
         const coveredBySpan = highlightSpans.some((span) => span.contains(node))
         if (!coveredBySpan) {
@@ -1162,48 +1643,43 @@ function App() {
     if (!hasText) return
 
     if (allCovered) {
-      // Remove: clear background-color directly from the spans.
       for (const span of highlightSpans) {
         span.style.backgroundColor = ''
         if (!span.style.cssText.trim() && !span.className) {
           span.replaceWith(...Array.from(span.childNodes))
         }
       }
+      
+      const targetEditor = editorEl === editorRef.current ? editorRef.current : speechEditorRef.current
+      targetEditor?.focus()
+      
+      const sel = window.getSelection()
+      if (sel) {
+        sel.removeAllRanges()
+        sel.addRange(saved)
+      }
+
       if (editorEl === editorRef.current) onEditorInput()
       else onSpeechEditorInput()
       setStatus('Highlight removed')
     } else {
-      applyStyleToRange(range, (wrapper) => {
+      applyStyleToRange(saved, (wrapper) => {
         wrapper.style.backgroundColor = color
       })
       setStatus('Highlight applied')
     }
   }
 
-  const applyInlineTextSize = (size: number) => {
-    const selection = window.getSelection()
-    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
-      setStatus('Select text to apply custom size')
-      return
-    }
-
-    const range = selection.getRangeAt(0)
-    const wrapper = document.createElement('span')
-    wrapper.style.fontSize = `${size}px`
-
-    try {
-      const content = range.extractContents()
-      wrapper.appendChild(content)
-      range.insertNode(wrapper)
-      selection.removeAllRanges()
-      const postRange = document.createRange()
-      postRange.selectNodeContents(wrapper)
-      selection.addRange(postRange)
+  const handlePaste = (event: React.ClipboardEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    const text = event.clipboardData.getData('text/plain')
+    document.execCommand('insertText', false, text)
+    if (activeEditorTarget === 'speech') {
+      onSpeechEditorInput()
+    } else {
       onEditorInput()
-      setStatus(`Applied ${size}px text size`)
-    } catch {
-      setStatus('Unable to apply custom text size here')
     }
+    setStatus('Pasted clean text')
   }
 
   const pasteAsDefaultText = async () => {
@@ -1244,7 +1720,7 @@ function App() {
       case 'boldUnderlineHighlight':
         applyCommand('bold')
         applyCommand('underline')
-        applyHighlightColorToSelection(activeHighlightColor)
+        toggleHighlightOnSelection(activeHighlightColor)
         break
       case 'pasteAsDefaultText':
         void pasteAsDefaultText()
@@ -1269,6 +1745,9 @@ function App() {
         break
       case 'sendToSpeech':
         sendToSpeech()
+        break
+      case 'clearFormatting':
+        clearFormatting()
         break
       default:
         break
@@ -1657,17 +2136,6 @@ function App() {
     )
   }
 
-  const onEditorKeyDown: KeyboardEventHandler<HTMLDivElement> = (event) => {
-    for (const group of shortcutGroups) {
-      const shortcut = data.settings.shortcuts[group.key]
-      if (matchesShortcut(event, shortcut)) {
-        event.preventDefault()
-        runShortcutAction(group.key)
-        break
-      }
-    }
-  }
-
   const importDebateDoc: ChangeEventHandler<HTMLInputElement> = async (event) => {
     const file = event.target.files?.[0]
     if (!file) {
@@ -1735,9 +2203,9 @@ function App() {
             <td>
               <input
                 type="text"
-                value={data.settings.shortcuts[shortcut.key]}
+                value={formatShortcutForDisplay(data.settings.shortcuts[shortcut.key])}
                 onChange={(event) =>
-                  updateShortcutSetting(shortcut.key, event.target.value)
+                  updateShortcutSetting(shortcut.key, parseShortcutInputToCanonical(event.target.value))
                 }
               />
             </td>
@@ -1893,23 +2361,33 @@ function App() {
   }
 
   const debatePane = activeDebateDoc ? (
-    <article className="editor-content">
+    <article className="editor-content" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div className="pane-header">
         <strong>Working Document</strong>
-        {isSplitView ? (
+        <div style={{ display: 'flex', gap: '8px' }}>
           <button
             type="button"
-            onClick={() => {
-              if (activeDebateDoc) {
-                openDebateTab(activeDebateDoc.id)
-              }
-              setPrimaryView('debate')
-              setIsSplitView(false)
-            }}
+            className={`toolbar-tab ${isOutlineOpen ? 'active' : ''}`}
+            onClick={() => setIsOutlineOpen((prev) => !prev)}
+            style={{ fontSize: '12px', padding: '4px 8px' }}
           >
-            Open
+            {isOutlineOpen ? 'Hide Outline' : 'Show Outline'}
           </button>
-        ) : null}
+          {isSplitView ? (
+            <button
+              type="button"
+              onClick={() => {
+                if (activeDebateDoc) {
+                  openDebateTab(activeDebateDoc.id)
+                }
+                setPrimaryView('debate')
+                setIsSplitView(false)
+              }}
+            >
+              Open
+            </button>
+          ) : null}
+        </div>
       </div>
       <input
         className="doc-title"
@@ -1921,39 +2399,105 @@ function App() {
           })
         }
       />
-      <div
-        ref={editorRef}
-        className={`editor single-editor ${invisibilityMode ? 'invisibility' : ''}`}
-        style={{ fontFamily: `${data.settings.defaultFont}, Arial, sans-serif` }}
-        contentEditable
-        suppressContentEditableWarning
-        onFocus={() => setActiveEditorTarget('debate')}
-        onInput={onEditorInput}
-        onKeyDown={onEditorKeyDown}
-      />
+      <div className="editor-workspace-row" style={{ display: 'flex', gap: '16px', flex: 1, minHeight: 0, marginTop: '8px' }}>
+        <div
+          ref={editorRef}
+          className={`editor single-editor ${invisibilityMode ? 'invisibility' : ''}`}
+          style={{ fontFamily: `${data.settings.defaultFont}, Arial, sans-serif`, flex: 1 }}
+          contentEditable
+          suppressContentEditableWarning
+          onFocus={() => setActiveEditorTarget('debate')}
+          onInput={onEditorInput}
+          onPaste={handlePaste}
+          onKeyDown={handleEditorKeyDown}
+          onClick={handleEditorClick}
+        />
+        {isOutlineOpen && (
+          <aside className="document-outline-pane" style={{ width: '220px', display: 'flex', flexDirection: 'column', gap: '8px', borderLeft: '1px solid var(--border)', paddingLeft: '16px', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-h)' }}>Outline</span>
+              <button type="button" onClick={() => setIsOutlineOpen(false)} style={{ background: 'transparent', border: 'none', color: 'var(--text)', cursor: 'pointer', fontSize: '12px' }}>✕</button>
+            </div>
+            <div className="outline-level-selectors" style={{ display: 'flex', gap: '4px' }}>
+              <button type="button" className={`toolbar-tab ${outlineMaxLevel >= 1 ? 'active' : ''}`} style={{ flex: 1, fontSize: '11px', padding: '2px 4px' }} onClick={() => setOutlineMaxLevel(1)}>H1</button>
+              <button type="button" className={`toolbar-tab ${outlineMaxLevel >= 2 ? 'active' : ''}`} style={{ flex: 1, fontSize: '11px', padding: '2px 4px' }} onClick={() => setOutlineMaxLevel(2)}>H2</button>
+              <button type="button" className={`toolbar-tab ${outlineMaxLevel >= 3 ? 'active' : ''}`} style={{ flex: 1, fontSize: '11px', padding: '2px 4px' }} onClick={() => setOutlineMaxLevel(3)}>H3</button>
+            </div>
+            <div className="outline-items" style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px', overflowY: 'auto', flex: 1 }}>
+              {getHeadingsFromHtml(activeDebateDoc.content).filter(h => h.level <= outlineMaxLevel).map((h) => (
+                <button
+                  key={h.index}
+                  type="button"
+                  onClick={() => jumpToHeading(h.index)}
+                  className="outline-item"
+                  style={{
+                    paddingLeft: `${(h.level - 1) * 12 + 4}px`,
+                    textAlign: 'left',
+                    background: 'transparent',
+                    border: 'none',
+                    borderLeft: h.level === 1 ? '2px solid var(--accent)' : '1px solid var(--border)',
+                    fontSize: `${13 - h.level * 0.5}px`,
+                    fontWeight: h.level === 1 ? '700' : '500',
+                    color: 'var(--text)',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    paddingTop: '3px',
+                    paddingBottom: '3px',
+                  }}
+                >
+                  {h.text}
+                </button>
+              ))}
+            </div>
+          </aside>
+        )}
+      </div>
+      <div className="editor-status-bar">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span className="save-pulse-dot" />
+          <span>Saved locally (autosave active)</span>
+        </div>
+        <div style={{ display: 'flex', gap: '16px' }}>
+          <span>Words: <strong>{editorWordCount}</strong></span>
+          <span>Spreading: <strong>{Math.ceil((editorWordCount / 300) * 60)}s</strong></span>
+          <span>Normal: <strong>{Math.ceil((editorWordCount / 180) * 60)}s</strong></span>
+        </div>
+      </div>
     </article>
   ) : (
     <p>Select a document to begin editing.</p>
   )
 
   const speechPane = activeSpeechDoc ? (
-    <article className="editor-content">
+    <article className="editor-content" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div className="pane-header">
         <strong>Speech Document</strong>
-        {isSplitView ? (
+        <div style={{ display: 'flex', gap: '8px' }}>
           <button
             type="button"
-            onClick={() => {
-              if (activeSpeechDoc) {
-                openSpeechTab(activeSpeechDoc.id)
-              }
-              setPrimaryView('speech')
-              setIsSplitView(false)
-            }}
+            className={`toolbar-tab ${isOutlineOpen ? 'active' : ''}`}
+            onClick={() => setIsOutlineOpen((prev) => !prev)}
+            style={{ fontSize: '12px', padding: '4px 8px' }}
           >
-            Open
+            {isOutlineOpen ? 'Hide Outline' : 'Show Outline'}
           </button>
-        ) : null}
+          {isSplitView ? (
+            <button
+              type="button"
+              onClick={() => {
+                if (activeSpeechDoc) {
+                  openSpeechTab(activeSpeechDoc.id)
+                }
+                setPrimaryView('speech')
+                setIsSplitView(false)
+              }}
+            >
+              Open
+            </button>
+          ) : null}
+        </div>
       </div>
       <input
         className="doc-title"
@@ -1965,14 +2509,71 @@ function App() {
           })
         }
       />
-      <div
-        ref={speechEditorRef}
-        className="editor speech-editor"
-        contentEditable
-        suppressContentEditableWarning
-        onFocus={() => setActiveEditorTarget('speech')}
-        onInput={onSpeechEditorInput}
-      />
+      <div className="editor-workspace-row" style={{ display: 'flex', gap: '16px', flex: 1, minHeight: 0, marginTop: '8px' }}>
+        <div
+          ref={speechEditorRef}
+          className="editor speech-editor"
+          contentEditable
+          suppressContentEditableWarning
+          onFocus={() => setActiveEditorTarget('speech')}
+          onInput={onSpeechEditorInput}
+          onPaste={handlePaste}
+          onKeyDown={handleEditorKeyDown}
+          onClick={handleEditorClick}
+        />
+        {isOutlineOpen && (
+          <aside className="document-outline-pane" style={{ width: '220px', display: 'flex', flexDirection: 'column', gap: '8px', borderLeft: '1px solid var(--border)', paddingLeft: '16px', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-h)' }}>Outline</span>
+              <button type="button" onClick={() => setIsOutlineOpen(false)} style={{ background: 'transparent', border: 'none', color: 'var(--text)', cursor: 'pointer', fontSize: '12px' }}>✕</button>
+            </div>
+            <div className="outline-level-selectors" style={{ display: 'flex', gap: '4px' }}>
+              <button type="button" className={`toolbar-tab ${outlineMaxLevel >= 1 ? 'active' : ''}`} style={{ flex: 1, fontSize: '11px', padding: '2px 4px' }} onClick={() => setOutlineMaxLevel(1)}>H1</button>
+              <button type="button" className={`toolbar-tab ${outlineMaxLevel >= 2 ? 'active' : ''}`} style={{ flex: 1, fontSize: '11px', padding: '2px 4px' }} onClick={() => setOutlineMaxLevel(2)}>H2</button>
+              <button type="button" className={`toolbar-tab ${outlineMaxLevel >= 3 ? 'active' : ''}`} style={{ flex: 1, fontSize: '11px', padding: '2px 4px' }} onClick={() => setOutlineMaxLevel(3)}>H3</button>
+            </div>
+            <div className="outline-items" style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px', overflowY: 'auto', flex: 1 }}>
+              {getHeadingsFromHtml(activeSpeechDoc.content).filter(h => h.level <= outlineMaxLevel).map((h) => (
+                <button
+                  key={h.index}
+                  type="button"
+                  onClick={() => jumpToHeading(h.index)}
+                  className="outline-item"
+                  style={{
+                    paddingLeft: `${(h.level - 1) * 12 + 4}px`,
+                    textAlign: 'left',
+                    background: 'transparent',
+                    border: 'none',
+                    borderLeft: h.level === 1 ? '2px solid var(--accent)' : '1px solid var(--border)',
+                    fontSize: `${13 - h.level * 0.5}px`,
+                    fontWeight: h.level === 1 ? '700' : '500',
+                    color: 'var(--text)',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    paddingTop: '3px',
+                    paddingBottom: '3px',
+                  }}
+                >
+                  {h.text}
+                </button>
+              ))}
+            </div>
+          </aside>
+        )}
+      </div>
+      <div className="editor-status-bar">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span className="save-pulse-dot" />
+          <span>Saved locally (autosave active)</span>
+        </div>
+        <div style={{ display: 'flex', gap: '16px' }}>
+          <span>Words: <strong>{editorWordCount}</strong></span>
+          <span>Spreading: <strong>{Math.ceil((editorWordCount / 300) * 60)}s</strong></span>
+          <span>Normal: <strong>{Math.ceil((editorWordCount / 180) * 60)}s</strong></span>
+        </div>
+      </div>
     </article>
   ) : (
     <p>Select a speech document.</p>
@@ -2045,6 +2646,57 @@ function App() {
                       {t.label}
                     </option>
                   ))}
+                </select>
+              </label>
+              <label className="settings-row">
+                <span>Heading Color Palette</span>
+                <select
+                  value={(() => {
+                    const presets = headingColorPresets[data.settings.theme] ?? headingColorPresets['dark']
+                    const matchedPreset = presets.find((preset) =>
+                      data.settings.textStyles.heading1.color === preset.colors.heading1 &&
+                      data.settings.textStyles.heading2.color === preset.colors.heading2 &&
+                      data.settings.textStyles.heading3.color === preset.colors.heading3 &&
+                      data.settings.textStyles.tag.color === preset.colors.tag &&
+                      data.settings.textStyles.defaultText.color === preset.colors.defaultText
+                    )
+                    return matchedPreset ? matchedPreset.label : 'Custom'
+                  })()}
+                  onChange={(e) => {
+                    const presetLabel = e.target.value
+                    const presets = headingColorPresets[data.settings.theme] ?? headingColorPresets['dark']
+                    const preset = presets.find((p) => p.label === presetLabel)
+                    if (preset) {
+                      updateSettings((settings) => {
+                        settings.textStyles.heading1.color = preset.colors.heading1
+                        settings.textStyles.heading2.color = preset.colors.heading2
+                        settings.textStyles.heading3.color = preset.colors.heading3
+                        settings.textStyles.tag.color = preset.colors.tag
+                        settings.textStyles.defaultText.color = preset.colors.defaultText
+                      })
+                    }
+                  }}
+                >
+                  {(headingColorPresets[data.settings.theme] ?? headingColorPresets['dark']).map((preset) => (
+                    <option key={preset.label} value={preset.label}>
+                      {preset.label}
+                    </option>
+                  ))}
+                  {(() => {
+                    const presets = headingColorPresets[data.settings.theme] ?? headingColorPresets['dark']
+                    const hasActive = presets.some((preset) =>
+                      data.settings.textStyles.heading1.color === preset.colors.heading1 &&
+                      data.settings.textStyles.heading2.color === preset.colors.heading2 &&
+                      data.settings.textStyles.heading3.color === preset.colors.heading3 &&
+                      data.settings.textStyles.tag.color === preset.colors.tag &&
+                      data.settings.textStyles.defaultText.color === preset.colors.defaultText
+                    )
+                    return !hasActive ? (
+                      <option key="Custom" value="Custom">
+                        Custom (Keep Current)
+                      </option>
+                    ) : null
+                  })()}
                 </select>
               </label>
             </div>
@@ -2154,7 +2806,7 @@ function App() {
                     <div className="color-row">
                       <input
                         type="color"
-                        value={data.settings.textStyles[group.key].color || '#111827'}
+                        value={data.settings.textStyles[group.key].color || getDefaultColorForTheme(data.settings.theme ?? 'dark', group.key)}
                         disabled={!data.settings.textStyles[group.key].color}
                         onChange={(event) =>
                           updateTextStyleSetting(group.key, 'color', event.target.value)
@@ -2182,8 +2834,8 @@ function App() {
             <div className="settings-group">
               <h4>Keyboard Shortcuts</h4>
               <p className="hint">
-                Use format like <code>Mod+Shift+H</code> or <code>Mod+Alt+1</code>.
-                Mod = Cmd on Mac, Ctrl on Windows.
+                Use format like <code>{isMac ? 'Cmd' : 'Ctrl'}+Shift+H</code> or <code>{isMac ? 'Cmd' : 'Ctrl'}+Alt+1</code>.
+                Your system uses <strong>{isMac ? 'Cmd' : 'Ctrl'}</strong> as the modifier key.
               </p>
               {shortcutsTable}
             </div>
@@ -2445,138 +3097,344 @@ function App() {
           </div>
         ) : null}
         <header className="editor-toolbar">
-          <div className="row">
-            <label className="toolbar-color-control">
-              <span>Text Color</span>
-              <div className="toolbar-color-select-wrap">
-                <span
-                  className="toolbar-color-dot"
-                  style={{ background: activeTextColor || 'var(--text)' }}
-                />
-                <select
-                  value={activeTextColor}
-                  onMouseDown={saveCurrentSelection}
-                  onChange={(event) => {
-                    const color = event.target.value
-                    setActiveTextColor(color)
-                    const saved = savedSelectionRef.current
-                    if (saved && !saved.collapsed) {
-                      applyStyleToRange(saved, (span) => { span.style.color = color })
-                    }
-                  }}
-                >
-                  {textColorOptions.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
+          <div className="toolbar-tabs">
+            <button
+              type="button"
+              className={`toolbar-tab ${activeToolbarTab === 'style' ? 'active' : ''}`}
+              onClick={() => setActiveToolbarTab('style')}
+            >
+              Style & Colors
+            </button>
+            <button
+              type="button"
+              className={`toolbar-tab ${activeToolbarTab === 'headings' ? 'active' : ''}`}
+              onClick={() => setActiveToolbarTab('headings')}
+            >
+              Headings & Tags
+            </button>
+            <button
+              type="button"
+              className={`toolbar-tab ${activeToolbarTab === 'actions' ? 'active' : ''}`}
+              onClick={() => setActiveToolbarTab('actions')}
+            >
+              Actions
+            </button>
+          </div>
+          <div className="toolbar-groups-container">
+            {activeToolbarTab === 'style' && (
+              <div className="toolbar-group">
+                <div className="toolbar-group-content">
+                  <div className="toolbar-color-control" style={{ position: 'relative' }}>
+                    <span>Text Color</span>
+                    <button
+                      type="button"
+                      className="toolbar-color-circle-btn"
+                      onClick={() => {
+                        saveCurrentSelection()
+                        setShowTextColorPicker(!showTextColorPicker)
+                      }}
+                      style={{
+                        width: '28px',
+                        height: '28px',
+                        borderRadius: '50%',
+                        background: activeTextColor || 'var(--text)',
+                        border: '2px solid var(--border)',
+                        cursor: 'pointer',
+                        display: 'block',
+                        padding: 0,
+                      }}
+                      title="Choose Text Color"
+                    />
+                    {showTextColorPicker && (
+                      <>
+                        <div className="color-picker-backdrop" onClick={() => setShowTextColorPicker(false)} />
+                        <div className="color-picker-popover">
+                          <div className="color-picker-grid">
+                            <button
+                              type="button"
+                              className={`color-swatch color-swatch-default ${activeTextColor === '' ? 'active' : ''}`}
+                              title="Default Text Color"
+                              onClick={() => {
+                                setActiveTextColor('')
+                                applyTextColor('')
+                                setShowTextColorPicker(false)
+                              }}
+                            >
+                              ✕
+                            </button>
+                            {colorChoices.map((color) => (
+                              <button
+                                key={color}
+                                type="button"
+                                className={`color-swatch ${activeTextColor === color ? 'active' : ''}`}
+                                style={{ backgroundColor: color }}
+                                title={color}
+                                onClick={() => {
+                                  setActiveTextColor(color)
+                                  applyTextColor(color)
+                                  setShowTextColorPicker(false)
+                                }}
+                              />
+                            ))}
+                            <label
+                              className="color-swatch color-swatch-custom"
+                              title="Custom Color"
+                              style={{ cursor: 'pointer' }}
+                            >
+                              <input
+                                type="color"
+                                value={activeTextColor.startsWith('#') ? activeTextColor : '#374151'}
+                                onChange={(e) => {
+                                  const color = e.target.value
+                                  setActiveTextColor(color)
+                                  applyTextColor(color)
+                                }}
+                                style={{ opacity: 0, width: 0, height: 0, padding: 0, border: 'none', position: 'absolute' }}
+                              />
+                            </label>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  <label className="toolbar-size-control">
+                    <span>Text Size</span>
+                    <select
+                      value={activeTextSize}
+                      onChange={(event) => {
+                        const nextSize = Number(event.target.value)
+                        setActiveTextSize(nextSize)
+                        applyTextSize(nextSize)
+                      }}
+                    >
+                      {[10, 11, 12, 13, 14, 15, 16, 18, 20, 24, 28, 32, 36, 40].map(
+                        (size) => (
+                          <option key={size} value={size}>
+                            {size}px
+                          </option>
+                        ),
+                      )}
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    title={`Bold (${formatShortcutForDisplay(data.settings.shortcuts.bold)})`}
+                    onMouseDown={(e) => { e.preventDefault(); applyCommand('bold') }}
+                  >
+                    Bold
+                  </button>
+                  <button
+                    type="button"
+                    title={`Underline (${formatShortcutForDisplay(data.settings.shortcuts.underline)})`}
+                    onMouseDown={(e) => { e.preventDefault(); applyCommand('underline') }}
+                  >
+                    Underline
+                  </button>
+                  <button
+                    type="button"
+                    title={`Highlight (${formatShortcutForDisplay(data.settings.shortcuts.highlight)})`}
+                    onMouseDown={(e) => { e.preventDefault(); toggleHighlightOnSelection(activeHighlightColor) }}
+                  >
+                    Highlight
+                  </button>
+                  <div className="toolbar-color-control" style={{ position: 'relative' }}>
+                    <span>Highlight Color</span>
+                    <button
+                      type="button"
+                      className="toolbar-color-circle-btn"
+                      onClick={() => {
+                        saveCurrentSelection()
+                        setShowHighlightColorPicker(!showHighlightColorPicker)
+                      }}
+                      style={{
+                        width: '28px',
+                        height: '28px',
+                        borderRadius: '50%',
+                        background: activeHighlightColor === 'transparent' ? 'repeating-linear-gradient(45deg,#ccc 0,#ccc 3px,#fff 3px,#fff 6px)' : activeHighlightColor,
+                        border: '2px solid var(--border)',
+                        cursor: 'pointer',
+                        display: 'block',
+                        padding: 0,
+                      }}
+                      title="Choose Highlight Color"
+                    />
+                    {showHighlightColorPicker && (
+                      <>
+                        <div className="color-picker-backdrop" onClick={() => setShowHighlightColorPicker(false)} />
+                        <div className="color-picker-popover">
+                          <div className="color-picker-grid">
+                            <button
+                              type="button"
+                              className={`color-swatch color-swatch-default ${activeHighlightColor === 'transparent' ? 'active' : ''}`}
+                              title="No Highlight"
+                              onClick={() => {
+                                setActiveHighlightColor('transparent')
+                                const saved = savedSelectionRef.current
+                                if (saved && !saved.collapsed) {
+                                  applyStyleToRange(saved, (span) => { span.style.backgroundColor = 'transparent' })
+                                }
+                                setShowHighlightColorPicker(false)
+                              }}
+                            >
+                              ✕
+                            </button>
+                            {highlightColorOptions.filter(o => o.value !== 'transparent').map((opt) => (
+                              <button
+                                key={opt.value}
+                                type="button"
+                                className={`color-swatch ${activeHighlightColor === opt.value ? 'active' : ''}`}
+                                style={{ backgroundColor: opt.value }}
+                                title={opt.label}
+                                onClick={() => {
+                                  setActiveHighlightColor(opt.value)
+                                  const saved = savedSelectionRef.current
+                                  if (saved && !saved.collapsed) {
+                                    applyStyleToRange(saved, (span) => { span.style.backgroundColor = opt.value })
+                                  }
+                                  setShowHighlightColorPicker(false)
+                                }}
+                              />
+                            ))}
+                            <label
+                              className="color-swatch color-swatch-custom"
+                              title="Custom Color"
+                              style={{ cursor: 'pointer' }}
+                            >
+                              <input
+                                type="color"
+                                value={activeHighlightColor.startsWith('#') ? activeHighlightColor : '#ffff00'}
+                                onChange={(e) => {
+                                  const color = e.target.value
+                                  setActiveHighlightColor(color)
+                                  const saved = savedSelectionRef.current
+                                  if (saved && !saved.collapsed) {
+                                    applyStyleToRange(saved, (span) => { span.style.backgroundColor = color })
+                                  }
+                                }}
+                                style={{ opacity: 0, width: 0, height: 0, padding: 0, border: 'none', position: 'absolute' }}
+                              />
+                            </label>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
               </div>
-            </label>
-            <label className="toolbar-size-control">
-              <span>Text Size</span>
-              <select
-                value={activeTextSize}
-                onMouseDown={saveCurrentSelection}
-                onChange={(event) => {
-                  const nextSize = Number(event.target.value)
-                  setActiveTextSize(nextSize)
-                  const saved = savedSelectionRef.current
-                  if (saved && !saved.collapsed) {
-                    applyStyleToRange(saved, (span) => { span.style.fontSize = `${nextSize}px` })
-                  } else {
-                    applyInlineTextSize(nextSize)
-                  }
-                }}
-              >
-                {[10, 11, 12, 13, 14, 15, 16, 18, 20, 24, 28, 32, 36, 40].map(
-                  (size) => (
-                    <option key={size} value={size}>
-                      {size}px
-                    </option>
-                  ),
-                )}
-              </select>
-            </label>
-            <button
-              type="button"
-              onMouseDown={(e) => { e.preventDefault(); applyCommand('bold') }}
-            >
-              Bold
-            </button>
-            <button
-              type="button"
-              onMouseDown={(e) => { e.preventDefault(); applyCommand('underline') }}
-            >
-              Underline
-            </button>
-            <button
-              type="button"
-              onMouseDown={(e) => { e.preventDefault(); toggleHighlightOnSelection(activeHighlightColor) }}
-            >
-              Highlight
-            </button>
-            <label className="toolbar-color-control">
-              <span>Highlight Color</span>
-              <div className="toolbar-color-select-wrap">
-                <span
-                  className="toolbar-color-dot"
-                  style={{ background: activeHighlightColor === 'transparent' ? 'repeating-linear-gradient(45deg,#ccc 0,#ccc 3px,#fff 3px,#fff 6px)' : activeHighlightColor }}
-                />
-                <select
-                  value={activeHighlightColor}
-                  onMouseDown={saveCurrentSelection}
-                  onChange={(event) => {
-                    const color = event.target.value
-                    setActiveHighlightColor(color)
-                    const saved = savedSelectionRef.current
-                    if (saved && !saved.collapsed) {
-                      applyStyleToRange(saved, (span) => { span.style.backgroundColor = color })
-                    }
-                  }}
-                >
-                  {highlightColorOptions.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
+            )}
+
+            {activeToolbarTab === 'headings' && (
+              <div className="toolbar-group">
+                <div className="toolbar-group-content">
+                  <button
+                    type="button"
+                    title={`Heading 1 (${formatShortcutForDisplay(data.settings.shortcuts.heading1)})`}
+                    onMouseDown={(e) => { e.preventDefault(); applyHeading(1) }}
+                  >
+                    H1
+                  </button>
+                  <button
+                    type="button"
+                    title={`Heading 2 (${formatShortcutForDisplay(data.settings.shortcuts.heading2)})`}
+                    onMouseDown={(e) => { e.preventDefault(); applyHeading(2) }}
+                  >
+                    H2
+                  </button>
+                  <button
+                    type="button"
+                    title={`Heading 3 (${formatShortcutForDisplay(data.settings.shortcuts.heading3)})`}
+                    onMouseDown={(e) => { e.preventDefault(); applyHeading(3) }}
+                  >
+                    H3
+                  </button>
+                  <button
+                    type="button"
+                    title={`Normal Paragraph (${formatShortcutForDisplay(data.settings.shortcuts.defaultText)})`}
+                    onMouseDown={(e) => { e.preventDefault(); applyDefaultTextBlock() }}
+                  >
+                    Normal
+                  </button>
+                  <button
+                    type="button"
+                    title={`Tag Selected Text (${formatShortcutForDisplay(data.settings.shortcuts.tagText)})`}
+                    onMouseDown={(e) => { e.preventDefault(); applyTagStyle() }}
+                  >
+                    Tag
+                  </button>
+                </div>
               </div>
-            </label>
-            <button
-              type="button"
-              onMouseDown={(e) => { e.preventDefault(); condenseSelection() }}
-            >
-              Condense
-            </button>
-            <button type="button" onClick={() => setIsShortcutsDialogOpen(true)}>
-              Keyboard Shortcuts
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setIsSplitView((previous) => {
-                  if (!previous) {
-                    setSplitRatio(50)
-                  }
-                  return !previous
-                })
-                if (!isSplitView) {
-                  setPrimaryView('debate')
-                }
-              }}
-            >
-              {isSplitView ? 'Close Split' : 'Split View'}
-            </button>
-            <button type="button" onClick={sendToSpeech}>
-              Send to Speech
-            </button>
-            <button
-              type="button"
-              onClick={() => setInvisibilityMode((previous) => !previous)}
-            >
-              {invisibilityMode ? 'Exit Invisibility' : 'Invisibility Mode'}
-            </button>
+            )}
+
+            {activeToolbarTab === 'actions' && (
+              <div className="toolbar-group">
+                <div className="toolbar-group-content">
+                  <button
+                    type="button"
+                    title={`Condense Selection (${formatShortcutForDisplay(data.settings.shortcuts.condense)})`}
+                    onMouseDown={(e) => { e.preventDefault(); condenseSelection() }}
+                  >
+                    Condense
+                  </button>
+                  <button
+                    type="button"
+                    title="Shrink the uncut (unbolded/unhighlighted/ununderlined) parts of paragraphs"
+                    onMouseDown={(e) => { e.preventDefault(); shrinkUncutText() }}
+                  >
+                    Shrink Uncut
+                  </button>
+                  <button
+                    type="button"
+                    title={`Clear Formatting (${formatShortcutForDisplay(data.settings.shortcuts.clearFormatting)})`}
+                    onMouseDown={(e) => { e.preventDefault(); clearFormatting() }}
+                  >
+                    Clear Formatting
+                  </button>
+                  <button
+                    type="button"
+                    title="View and Edit Keyboard Shortcuts"
+                    onClick={() => setIsShortcutsDialogOpen(true)}
+                  >
+                    Shortcuts
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsSplitView((previous) => {
+                        const nextSplit = !previous
+                        if (nextSplit) {
+                          setSplitRatio(50)
+                          const hasOpenSpeechTab = data.openTabs.some((tab) => tab.type === 'speech')
+                          if (!hasOpenSpeechTab) {
+                            if (data.speechDocs.length > 0) {
+                              openSpeechTab(data.speechDocs[0].id)
+                            } else {
+                              createSpeechDoc()
+                            }
+                          }
+                        }
+                        return nextSplit
+                      })
+                      setPrimaryView('debate')
+                    }}
+                  >
+                    {isSplitView ? 'Close Split' : 'Split View'}
+                  </button>
+                  <button
+                    type="button"
+                    title={`Send Paragraph to Speech (${formatShortcutForDisplay(data.settings.shortcuts.sendToSpeech)})`}
+                    onClick={sendToSpeech}
+                  >
+                    Send to Speech
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInvisibilityMode((previous) => !previous)}
+                  >
+                    {invisibilityMode ? 'Exit Invisibility' : 'Invisibility Mode'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </header>
         {data.activeTab === null ? (
@@ -2712,6 +3570,7 @@ function App() {
           </div>
         </div>
       ) : null}
+
     </main>
   )
 }

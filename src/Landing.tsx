@@ -42,13 +42,16 @@ const features = [
   },
 ]
 
+const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '')
+const modKey = isMac ? 'Cmd' : 'Ctrl'
+
 const shortcuts = [
-  { keys: ['Cmd', 'B'], label: 'Bold' },
-  { keys: ['Cmd', 'U'], label: 'Underline' },
-  { keys: ['Cmd', '⇧', 'H'], label: 'Highlight' },
-  { keys: ['Cmd', '⇧', 'V'], label: 'Paste as default text' },
-  { keys: ['Cmd', '⇧', 'C'], label: 'Condense' },
-  { keys: ['Cmd', '⇧', 'S'], label: 'Send to speech' },
+  { keys: [modKey, 'B'], label: 'Bold' },
+  { keys: [modKey, 'U'], label: 'Underline' },
+  { keys: [modKey, '⇧', 'H'], label: 'Highlight' },
+  { keys: [modKey, '⇧', 'V'], label: 'Paste as default text' },
+  { keys: [modKey, '⇧', 'C'], label: 'Condense' },
+  { keys: [modKey, '⇧', 'S'], label: 'Send to speech' },
 ]
 
 export default function Landing() {

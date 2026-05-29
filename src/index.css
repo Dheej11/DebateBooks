@@ -16,6 +16,21 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   color-scheme: dark;
+
+  /* Theme-adaptive text colors */
+  --color-dark-gray: #e5e7eb;
+  --color-gray: #9ca3af;
+  --color-white: #ffffff;
+  --color-blue: #60a5fa;
+  --color-dark-blue: #93c5fd;
+  --color-red: #f87171;
+  --color-dark-red: #fca5a5;
+  --color-green: #4ade80;
+  --color-dark-green: #86efac;
+  --color-purple: #c084fc;
+  --color-dark-purple: #d8b4fe;
+  --color-orange: #fb923c;
+  --color-brown: #fde047;
 }
 
 /* ── Dark ───────────────────────────────────────────────────── */
@@ -100,6 +115,24 @@
   --accent-bg: rgba(29, 78, 216, 0.06);
   --accent-border: rgba(29, 78, 216, 0.4);
   color-scheme: light;
+}
+
+[data-theme='light'],
+[data-theme='sepia'],
+[data-theme='classic'] {
+  --color-dark-gray: #374151;
+  --color-gray: #4b5563;
+  --color-white: #1f2937;
+  --color-blue: #1d4ed8;
+  --color-dark-blue: #1e3a8a;
+  --color-red: #b91c1c;
+  --color-dark-red: #7c2d12;
+  --color-green: #16a34a;
+  --color-dark-green: #166534;
+  --color-purple: #7c3aed;
+  --color-dark-purple: #6b21a8;
+  --color-orange: #ea580c;
+  --color-brown: #92400e;
 }
 
 /* ── Global ─────────────────────────────────────────────────── */
