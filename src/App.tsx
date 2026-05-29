@@ -491,6 +491,7 @@ function App() {
   const [invisibilityMode, setInvisibilityMode] = useState(false)
   const [status, setStatus] = useState('Ready')
   const [leftPanelView, setLeftPanelView] = useState<LeftPanelView>('files')
+  const [fileSearchQuery, setFileSearchQuery] = useState('')
   const [leftPanelWidth, setLeftPanelWidth] = useState(290)
   const [isResizingLeftPanel, setIsResizingLeftPanel] = useState(false)
   const [primaryView, setPrimaryView] = useState<PrimaryView>('debate')
@@ -560,6 +561,19 @@ function App() {
     () => [...data.folders].sort((a, b) => a.order - b.order),
     [data.folders],
   )
+
+  const searchResults = useMemo(() => {
+    const q = fileSearchQuery.trim().toLowerCase()
+    if (!q) return null
+    const matchedDocs = data.debateDocs.filter((d) =>
+      d.title.toLowerCase().includes(q) ||
+      d.content.toLowerCase().includes(q),
+    )
+    const matchedFolders = data.folders.filter((f) =>
+      f.name.toLowerCase().includes(q),
+    )
+    return { docs: matchedDocs, folders: matchedFolders }
+  }, [fileSearchQuery, data.debateDocs, data.folders])
 
   const localKey = user ? `debatefiles.v1.${user.uid}` : null
 
@@ -2197,6 +2211,71 @@ function App() {
             <button type="button" className="drive-link-btn" onClick={() => navigate('/drive')}>
               Go To Drive 🗂
             </button>
+            <div className="file-search-wrap">
+              <span className="file-search-icon">🔍</span>
+              <input
+                className="file-search-input"
+                placeholder="Search files…"
+                value={fileSearchQuery}
+                onChange={(e) => setFileSearchQuery(e.target.value)}
+              />
+              {fileSearchQuery && (
+                <button
+                  type="button"
+                  className="file-search-clear"
+                  onClick={() => setFileSearchQuery('')}
+                  aria-label="Clear search"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {searchResults ? (
+              <div className="file-search-results">
+                {searchResults.folders.length === 0 && searchResults.docs.length === 0 ? (
+                  <p className="file-search-empty">No results for "{fileSearchQuery}"</p>
+                ) : (
+                  <>
+                    {searchResults.folders.length > 0 && (
+                      <>
+                        <p className="file-search-section-label">FOLDERS</p>
+                        {searchResults.folders.map((folder) => (
+                          <div key={folder.id} className="file-search-result-row file-search-folder-row">
+                            <span className="file-search-result-icon">📁</span>
+                            <span className="file-search-result-name">{folder.name}</span>
+                          </div>
+                        ))}
+                      </>
+                    )}
+                    {searchResults.docs.length > 0 && (
+                      <>
+                        <p className="file-search-section-label">FILES</p>
+                        {searchResults.docs.map((doc) => (
+                          <button
+                            key={doc.id}
+                            type="button"
+                            className={`file-search-result-row ${
+                              data.activeTab?.type === 'debate' && data.activeTab.id === doc.id
+                                ? 'doc-button-active'
+                                : isDebateDocOpen(doc.id)
+                                  ? 'doc-button-open'
+                                  : ''
+                            }`}
+                            onClick={() => { openDebateTab(doc.id); setFileSearchQuery('') }}
+                          >
+                            <span className="file-search-result-icon">📄</span>
+                            <span className="file-search-result-name">{doc.title}</span>
+                            <small className="file-search-result-meta">{formatDate(doc.updatedAt)}</small>
+                          </button>
+                        ))}
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
+            ) : (
+            <>
             <div
               className={`stack folder-drop-zone ${
                 dropTargetFolderId === 'root' ? 'folder-drop-zone-active' : ''
@@ -2322,6 +2401,8 @@ function App() {
                 </button>
               </div>
             ) : null}
+            </> /* end searchResults else */
+            )}
           </>
         )}
         <div
