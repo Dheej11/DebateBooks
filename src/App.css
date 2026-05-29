@@ -425,11 +425,118 @@ button:disabled {
 
 .toolbar-tabs {
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: 4px;
   margin-bottom: 12px;
   border-bottom: 1px solid var(--border);
   padding-bottom: 8px;
 }
+
+.editor-toolbar-collapsed .toolbar-tabs {
+  margin-bottom: 0;
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.toolbar-tabs-spacer {
+  flex: 1;
+}
+
+.toolbar-settings-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+.toolbar-settings-btn:hover {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+.toolbar-collapse-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--text);
+  padding: 4px 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+.toolbar-collapse-btn:hover {
+  background: var(--accent-bg);
+}
+
+.toolbar-shortcuts-panel {
+  flex: 1 1 100%;
+  width: 100%;
+}
+
+.toolbar-shortcuts-table-wrap {
+  overflow-x: auto;
+}
+
+.shortcuts-side-by-side {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.shortcuts-table-compact {
+  font-size: 12px;
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.shortcuts-table-compact th,
+.shortcuts-table-compact td {
+  padding: 4px 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.shortcuts-table-compact th {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  opacity: 0.6;
+  padding-bottom: 6px;
+}
+
+.shortcuts-table-compact input {
+  font-size: 11px;
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: monospace;
+  width: 140px;
+}
+
+.toolbar-shortcuts-edit-btn {
+  margin-top: 8px;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.toolbar-shortcuts-edit-btn:hover { opacity: 0.75; }
 
 .toolbar-tab {
   background: transparent;

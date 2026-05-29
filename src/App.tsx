@@ -607,8 +607,10 @@ function App() {
     y: number
   } | null>(null)
   const [activeEditorTarget, setActiveEditorTarget] = useState<PrimaryView>('debate')
-  const [activeToolbarTab, setActiveToolbarTab] = useState<'style' | 'headings' | 'actions'>('style')
+  const [activeToolbarTab, setActiveToolbarTab] = useState<'style' | 'headings' | 'actions' | 'shortcuts'>('style')
+  const [isToolbarCollapsed, setIsToolbarCollapsed] = useState(false)
   const editorRef = useRef<HTMLDivElement | null>(null)
+  const shortcutsSettingsSectionRef = useRef<HTMLDivElement | null>(null)
   const speechEditorRef = useRef<HTMLDivElement | null>(null)
   const savedSelectionRef = useRef<Range | null>(null)
   const splitContainerRef = useRef<HTMLDivElement | null>(null)
@@ -1944,6 +1946,13 @@ function App() {
     })
   }
 
+  const openSettingsAtShortcuts = () => {
+    setLeftPanelView('settings')
+    setTimeout(() => {
+      shortcutsSettingsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 120)
+  }
+
   const openDebateTab = (docId: string) => {
     setData((previous) => ({
       ...previous,
@@ -2213,6 +2222,35 @@ function App() {
         ))}
       </tbody>
     </table>
+  )
+
+  const half = Math.ceil(shortcutGroups.length / 2)
+  const shortcutsTableSideBySide = (
+    <div className="shortcuts-side-by-side">
+      {[shortcutGroups.slice(0, half), shortcutGroups.slice(half)].map((group, colIdx) => (
+        <table key={colIdx} className="shortcuts-table shortcuts-table-compact">
+          <thead>
+            <tr><th>Action</th><th>Shortcut</th></tr>
+          </thead>
+          <tbody>
+            {group.map((shortcut) => (
+              <tr key={shortcut.key}>
+                <td>{shortcut.label}</td>
+                <td>
+                  <input
+                    type="text"
+                    value={formatShortcutForDisplay(data.settings.shortcuts[shortcut.key])}
+                    onChange={(event) =>
+                      updateShortcutSetting(shortcut.key, parseShortcutInputToCanonical(event.target.value))
+                    }
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ))}
+    </div>
   )
 
   const renderFolderTree = (parentFolderId: string | null, depth = 0): ReactElement[] => {
@@ -2830,7 +2868,7 @@ function App() {
                 </div>
               </div>
             ))}
-            <h4 className="settings-section-title">Keyboard Shortcuts</h4>
+            <h4 className="settings-section-title" ref={shortcutsSettingsSectionRef}>Keyboard Shortcuts</h4>
             <div className="settings-group">
               <h4>Keyboard Shortcuts</h4>
               <p className="hint">
@@ -3096,31 +3134,55 @@ function App() {
             ))}
           </div>
         ) : null}
-        <header className="editor-toolbar">
+        <header className={`editor-toolbar ${isToolbarCollapsed ? 'editor-toolbar-collapsed' : ''}`}>
           <div className="toolbar-tabs">
             <button
               type="button"
               className={`toolbar-tab ${activeToolbarTab === 'style' ? 'active' : ''}`}
-              onClick={() => setActiveToolbarTab('style')}
+              onClick={() => { setActiveToolbarTab('style'); setIsToolbarCollapsed(false) }}
             >
               Style & Colors
             </button>
             <button
               type="button"
               className={`toolbar-tab ${activeToolbarTab === 'headings' ? 'active' : ''}`}
-              onClick={() => setActiveToolbarTab('headings')}
+              onClick={() => { setActiveToolbarTab('headings'); setIsToolbarCollapsed(false) }}
             >
               Headings & Tags
             </button>
             <button
               type="button"
               className={`toolbar-tab ${activeToolbarTab === 'actions' ? 'active' : ''}`}
-              onClick={() => setActiveToolbarTab('actions')}
+              onClick={() => { setActiveToolbarTab('actions'); setIsToolbarCollapsed(false) }}
             >
               Actions
             </button>
+            <button
+              type="button"
+              className={`toolbar-tab ${activeToolbarTab === 'shortcuts' ? 'active' : ''}`}
+              onClick={() => { setActiveToolbarTab('shortcuts'); setIsToolbarCollapsed(false) }}
+            >
+              Shortcuts
+            </button>
+            <div className="toolbar-tabs-spacer" />
+            <button
+              type="button"
+              className="toolbar-settings-btn"
+              title="Open Settings → Keyboard Shortcuts"
+              onClick={openSettingsAtShortcuts}
+            >
+              ⚙ Settings
+            </button>
+            <button
+              type="button"
+              className="toolbar-collapse-btn"
+              title={isToolbarCollapsed ? 'Expand toolbar' : 'Collapse toolbar'}
+              onClick={() => setIsToolbarCollapsed((v) => !v)}
+            >
+              {isToolbarCollapsed ? '▼' : '▲'}
+            </button>
           </div>
-          <div className="toolbar-groups-container">
+          {!isToolbarCollapsed && <div className="toolbar-groups-container">
             {activeToolbarTab === 'style' && (
               <div className="toolbar-group">
                 <div className="toolbar-group-content">
@@ -3365,7 +3427,23 @@ function App() {
               </div>
             )}
 
-            {activeToolbarTab === 'actions' && (
+            {activeToolbarTab === 'shortcuts' && (
+              <div className="toolbar-group toolbar-shortcuts-panel">
+                <div className="toolbar-group-label">KEYBOARD SHORTCUTS</div>
+                <div className="toolbar-shortcuts-table-wrap">
+                  {shortcutsTableSideBySide}
+                </div>
+                <button
+                  type="button"
+                  className="toolbar-shortcuts-edit-btn"
+                  onClick={openSettingsAtShortcuts}
+                >
+                  Edit Shortcuts in Settings →
+                </button>
+              </div>
+            )}
+
+            {activeToolbarTab === 'actions' && !isToolbarCollapsed && (
               <div className="toolbar-group">
                 <div className="toolbar-group-content">
                   <button
@@ -3435,7 +3513,7 @@ function App() {
                 </div>
               </div>
             )}
-          </div>
+          </div>}
         </header>
         {data.activeTab === null ? (
           <div className="empty-workspace">
