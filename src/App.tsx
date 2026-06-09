@@ -1579,7 +1579,7 @@ function App() {
           // It is uncut! Wrap it in a span
           const span = document.createElement('span')
           span.className = 'uncut-text'
-          span.setAttribute('style', 'font-size: 10px; opacity: 0.5; font-weight: normal; font-style: normal; text-decoration: none;')
+          span.setAttribute('style', 'font-size: 10px; font-weight: normal; font-style: normal; text-decoration: none;')
           span.appendChild(node.cloneNode(true))
           return [span]
         }
