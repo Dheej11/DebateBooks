@@ -2496,6 +2496,21 @@ function App() {
     setStatus(`Opened PDF export for "${doc.title}"`)
   }
 
+  const openDebateTimer = () => {
+    const theme = encodeURIComponent(data.settings.theme ?? 'dark')
+    const timerWindow = window.open(
+      `/timer?theme=${theme}`,
+      'debatefiles-timer',
+      'noopener,noreferrer,width=420,height=720,menubar=no,toolbar=no,location=no,status=no',
+    )
+    if (!timerWindow) {
+      setStatus('Pop-up blocked. Allow pop-ups to open the timer.')
+      return
+    }
+    timerWindow.focus()
+    setStatus('Debate timer opened')
+  }
+
   const onDocContextMenu = (
     event: ReactMouseEvent<HTMLButtonElement>,
     docId: string,
@@ -3567,6 +3582,14 @@ function App() {
               Shortcuts
             </button>
             <div className="toolbar-tabs-spacer" />
+            <button
+              type="button"
+              className="toolbar-settings-btn"
+              title="Open debate timer in a pop-up window"
+              onClick={openDebateTimer}
+            >
+              ⏱ Timer
+            </button>
             <button
               type="button"
               className="toolbar-settings-btn"

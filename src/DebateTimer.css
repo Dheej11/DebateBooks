@@ -1,0 +1,205 @@
+.debate-timer-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.debate-timer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.debate-timer-header h1 {
+  margin: 0;
+  font-size: 15px;
+  color: var(--text-h);
+}
+
+.debate-timer-header p {
+  margin: 2px 0 0;
+  font-size: 12px;
+}
+
+.debate-timer-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  overflow: auto;
+}
+
+.debate-timer-display {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 24px 16px 20px;
+  text-align: center;
+}
+
+.debate-timer-label {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.debate-timer-clock {
+  margin: 0;
+  font-size: clamp(3.5rem, 18vw, 5.5rem);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-h);
+  transition: color 0.2s ease;
+}
+
+.debate-timer-clock.warning {
+  color: var(--color-orange);
+}
+
+.debate-timer-clock.critical,
+.debate-timer-clock.overtime {
+  color: var(--color-red);
+}
+
+.debate-timer-status {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.debate-timer-controls {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.debate-timer-controls button {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text-h);
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.debate-timer-controls button:hover {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+}
+
+.debate-timer-controls button.primary {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+  color: var(--text-h);
+}
+
+.debate-timer-custom {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.debate-timer-custom label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.debate-timer-custom input {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text-h);
+  padding: 8px 10px;
+  font: inherit;
+}
+
+.debate-timer-custom button {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text-h);
+  padding: 8px 12px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  height: 36px;
+}
+
+.debate-timer-custom button:hover {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+}
+
+.debate-timer-presets h2 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text);
+}
+
+.debate-timer-preset-group + .debate-timer-preset-group {
+  margin-top: 12px;
+}
+
+.debate-timer-preset-group h3 {
+  margin: 0 0 6px;
+  font-size: 11px;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.debate-timer-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.debate-timer-preset-grid button {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text-h);
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.debate-timer-preset-grid button:hover,
+.debate-timer-preset-grid button.active {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+}
+
+.debate-timer-preset-grid button span {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text);
+}
+
+.debate-timer-footer {
+  padding: 10px 16px 14px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text);
+}

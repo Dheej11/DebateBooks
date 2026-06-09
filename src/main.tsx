@@ -8,6 +8,7 @@ import App from './App.tsx'
 import Landing from './Landing.tsx'
 import LoginPage from './LoginPage.tsx'
 import Drive from './Drive.tsx'
+import DebateTimer from './DebateTimer.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -32,6 +33,7 @@ createRoot(document.getElementById('root')!).render(
               </ProtectedRoute>
             }
           />
+          <Route path="/timer" element={<DebateTimer />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>
