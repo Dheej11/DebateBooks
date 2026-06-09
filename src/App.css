@@ -203,6 +203,111 @@ button:disabled {
   background: var(--sidebar);
 }
 
+.trash-link-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.trash-link-btn:hover {
+  border-color: var(--accent-border);
+  background: var(--sidebar);
+  color: var(--text-h);
+}
+
+.trash-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: auto;
+}
+
+.trash-panel h3 {
+  margin: 0;
+  color: var(--text-h);
+}
+
+.trash-empty {
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.trash-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.trash-item {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.trash-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.trash-item-info strong {
+  color: var(--text-h);
+  font-size: 13px;
+}
+
+.trash-item-info small {
+  color: var(--text);
+  font-size: 11px;
+}
+
+.trash-item-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.trash-item-actions button {
+  flex: 1;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text-h);
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.trash-item-actions button:hover {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+}
+
+.trash-item-actions button.danger {
+  color: var(--color-red);
+}
+
+.trash-item-actions button.danger:hover {
+  background: rgba(248, 113, 113, 0.12);
+  border-color: rgba(248, 113, 113, 0.35);
+}
+
 /* ── File search ── */
 .file-search-wrap {
   position: relative;
@@ -1154,6 +1259,15 @@ kbd {
 
 .context-menu button {
   text-align: left;
+}
+
+.context-menu button.context-menu-danger {
+  color: var(--color-red);
+}
+
+.context-menu button.context-menu-danger:hover {
+  background: rgba(248, 113, 113, 0.12);
+  border-color: rgba(248, 113, 113, 0.35);
 }
 
 .context-menu-divider {

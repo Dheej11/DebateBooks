@@ -23,6 +23,10 @@ interface DebateDocument {
   folderId: string | null
 }
 
+interface TrashedDebateDocument extends DebateDocument {
+  deletedAt: number
+}
+
 interface DebateFolder {
   id: string
   name: string
@@ -48,6 +52,7 @@ interface SpeechDocument {
 
 interface AppData {
   debateDocs: DebateDocument[]
+  deletedDocs: TrashedDebateDocument[]
   folders: DebateFolder[]
   speechDocs: SpeechDocument[]
   activeDebateDocId: string
@@ -57,7 +62,7 @@ interface AppData {
   settings: EditorSettings
 }
 
-type LeftPanelView = 'files' | 'settings'
+type LeftPanelView = 'files' | 'settings' | 'trash'
 type PrimaryView = 'debate' | 'speech'
 type FontStylePreset =
   | 'normal'
@@ -486,6 +491,7 @@ const defaultData = (): AppData => {
 
   return {
     debateDocs: [debateDoc],
+    deletedDocs: [],
     folders: [],
     speechDocs: [],
     activeDebateDocId: debateDoc.id,
@@ -533,6 +539,11 @@ function parseAppData(raw: unknown): AppData {
       debateDocs: parsed.debateDocs.map((d) => ({
         ...d,
         folderId: d.folderId ?? null,
+      })),
+      deletedDocs: (parsed.deletedDocs ?? []).map((d) => ({
+        ...d,
+        folderId: d.folderId ?? null,
+        deletedAt: d.deletedAt ?? Date.now(),
       })),
       openTabs:
         parsed.openTabs?.length > 0
@@ -2247,6 +2258,96 @@ function App() {
     }))
   }
 
+  const dismissContextMenu = () => {
+    setActiveContextDocId(null)
+    setContextMenuPosition(null)
+  }
+
+  const moveDebateDocToTrash = (docId: string) => {
+    if (data.debateDocs.length <= 1) {
+      setStatus('Cannot delete your only remaining file')
+      return
+    }
+
+    setData((previous) => {
+      const doc = previous.debateDocs.find((item) => item.id === docId)
+      if (!doc) {
+        return previous
+      }
+
+      const trashed: TrashedDebateDocument = { ...doc, deletedAt: Date.now() }
+      const nextDebateDocs = previous.debateDocs.filter((item) => item.id !== docId)
+      let nextOpenTabs = previous.openTabs.filter(
+        (tab) => !(tab.id === docId && tab.type === 'debate'),
+      )
+
+      let nextActiveTab = previous.activeTab
+      let nextActiveDebateId = previous.activeDebateDocId
+      const nextActiveSpeechId = previous.activeSpeechId
+
+      if (
+        previous.activeDebateDocId === docId ||
+        (previous.activeTab?.id === docId && previous.activeTab.type === 'debate')
+      ) {
+        const fallbackDebateTab = [...nextOpenTabs]
+          .reverse()
+          .find((tab) => tab.type === 'debate')
+
+        if (fallbackDebateTab) {
+          nextActiveTab = fallbackDebateTab
+          nextActiveDebateId = fallbackDebateTab.id
+        } else {
+          nextActiveDebateId = nextDebateDocs[0]?.id ?? previous.activeDebateDocId
+          const existingTab = nextOpenTabs.find(
+            (tab) => tab.id === nextActiveDebateId && tab.type === 'debate',
+          )
+          if (!existingTab) {
+            nextOpenTabs = [...nextOpenTabs, { id: nextActiveDebateId, type: 'debate' }]
+          }
+          nextActiveTab = { id: nextActiveDebateId, type: 'debate' }
+        }
+      }
+
+      return {
+        ...previous,
+        debateDocs: nextDebateDocs,
+        deletedDocs: [trashed, ...(previous.deletedDocs ?? [])],
+        openTabs: nextOpenTabs,
+        activeTab: nextActiveTab,
+        activeDebateDocId: nextActiveDebateId,
+        activeSpeechId: nextActiveSpeechId,
+      }
+    })
+
+    dismissContextMenu()
+    setStatus('Moved to Recently Deleted')
+  }
+
+  const restoreDebateDoc = (docId: string) => {
+    setData((previous) => {
+      const trashed = (previous.deletedDocs ?? []).find((item) => item.id === docId)
+      if (!trashed) {
+        return previous
+      }
+
+      const { deletedAt: _deletedAt, ...doc } = trashed
+      return {
+        ...previous,
+        debateDocs: [doc, ...previous.debateDocs],
+        deletedDocs: (previous.deletedDocs ?? []).filter((item) => item.id !== docId),
+      }
+    })
+    setStatus('File restored')
+  }
+
+  const permanentlyDeleteDebateDoc = (docId: string) => {
+    setData((previous) => ({
+      ...previous,
+      deletedDocs: (previous.deletedDocs ?? []).filter((item) => item.id !== docId),
+    }))
+    setStatus('File permanently deleted')
+  }
+
   const isFolderDescendant = (
     folders: DebateFolder[],
     folderId: string,
@@ -3301,6 +3402,42 @@ function App() {
               Tag style applies to text wrapped in a span with class <code>tag-text</code>.
             </p>
           </div>
+        ) : leftPanelView === 'trash' ? (
+          <div className="trash-panel">
+            <h3>Recently Deleted</h3>
+            <p className="hint">
+              Restore files or permanently delete them. Deleted files are removed from your file list but kept here until you delete them forever.
+            </p>
+            {(data.deletedDocs ?? []).length === 0 ? (
+              <p className="trash-empty">No deleted files.</p>
+            ) : (
+              <div className="trash-list">
+                {(data.deletedDocs ?? []).map((doc) => (
+                  <div key={doc.id} className="trash-item">
+                    <div className="trash-item-info">
+                      <strong>{doc.title}</strong>
+                      <small>Deleted {formatDate(doc.deletedAt)}</small>
+                    </div>
+                    <div className="trash-item-actions">
+                      <button type="button" onClick={() => restoreDebateDoc(doc.id)}>
+                        Restore
+                      </button>
+                      <button
+                        type="button"
+                        className="danger"
+                        onClick={() => permanentlyDeleteDebateDoc(doc.id)}
+                      >
+                        Delete Forever
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <button type="button" onClick={() => setLeftPanelView('files')}>
+              Back to Files
+            </button>
+          </div>
         ) : (
           <>
             <div className="row">
@@ -3317,6 +3454,16 @@ function App() {
             </div>
             <button type="button" className="drive-link-btn" onClick={() => navigate('/drive')}>
               Go To Drive 🗂
+            </button>
+            <button
+              type="button"
+              className="trash-link-btn"
+              onClick={() => setLeftPanelView('trash')}
+            >
+              Recently Deleted
+              {(data.deletedDocs ?? []).length > 0
+                ? ` (${(data.deletedDocs ?? []).length})`
+                : ''}
             </button>
             <div className="file-search-wrap">
               <span className="file-search-icon">🔍</span>
@@ -3370,6 +3517,7 @@ function App() {
                                   : ''
                             }`}
                             onClick={() => { openDebateTab(doc.id); setFileSearchQuery('') }}
+                            onContextMenu={(event) => onDocContextMenu(event, doc.id)}
                           >
                             <span className="file-search-result-icon">📄</span>
                             <span className="file-search-result-name">{doc.title}</span>
@@ -3500,11 +3648,19 @@ function App() {
                   type="button"
                   onClick={() => {
                     exportDocById(activeContextDocId)
-                    setActiveContextDocId(null)
-                    setContextMenuPosition(null)
+                    dismissContextMenu()
                   }}
                 >
                   Export as JSON
+                </button>
+                <div className="context-menu-divider" />
+                <div className="context-menu-section">Delete</div>
+                <button
+                  type="button"
+                  className="context-menu-danger"
+                  onClick={() => moveDebateDocToTrash(activeContextDocId)}
+                >
+                  Move to Recently Deleted
                 </button>
               </div>
             ) : null}
