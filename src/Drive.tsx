@@ -1,8 +1,8 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from './AuthContext'
 import { db } from './firebase'
-import { doc, getDoc } from 'firebase/firestore'
+import { doc, getDoc, setDoc } from 'firebase/firestore'
 import './Drive.css'
 
 /* ── Types (mirror App.tsx) ─────────────────────────────────────── */
@@ -12,6 +12,10 @@ interface DebateDocument {
   updatedAt: number
   content: string
   folderId: string | null
+}
+
+interface TrashedDebateDocument extends DebateDocument {
+  deletedAt: number
 }
 
 interface DebateFolder {
@@ -31,18 +35,47 @@ interface SpeechDocument {
 
 interface DriveData {
   debateDocs: DebateDocument[]
+  deletedDocs: TrashedDebateDocument[]
   folders: DebateFolder[]
   speechDocs: SpeechDocument[]
 }
+
+type DriveTab = 'files' | 'speech' | 'deleted'
 
 /* ── Helpers ────────────────────────────────────────────────────── */
 const fmt = (ts: number) =>
   new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 
+const fmtDateTime = (ts: number) =>
+  new Date(ts).toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+
 function stripHtml(html: string): string {
   const div = document.createElement('div')
   div.innerHTML = html
   return div.textContent?.trim().slice(0, 120) ?? ''
+}
+
+function parseDriveData(raw: unknown): DriveData {
+  const parsed = raw as Partial<DriveData>
+  return {
+    debateDocs: parsed.debateDocs ?? [],
+    deletedDocs: (parsed.deletedDocs ?? []).map((d) => ({
+      ...d,
+      folderId: d.folderId ?? null,
+      deletedAt: d.deletedAt ?? Date.now(),
+    })),
+    folders: (parsed.folders ?? []).map((f, i) => ({
+      ...f,
+      parentFolderId: f.parentFolderId ?? null,
+      order: f.order ?? i,
+    })),
+    speechDocs: parsed.speechDocs ?? [],
+  }
 }
 
 /* ── Component ──────────────────────────────────────────────────── */
@@ -55,51 +88,92 @@ export default function Drive() {
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [view, setView] = useState<'grid' | 'list'>('grid')
-  const [activeTab, setActiveTab] = useState<'files' | 'speech'>('files')
+  const [activeTab, setActiveTab] = useState<DriveTab>('files')
+  const [status, setStatus] = useState('')
+
+  const localKey = user ? `debatefiles.v1.${user.uid}` : null
+
+  const persistDriveChanges = useCallback(
+    (updater: (current: Record<string, unknown>) => Record<string, unknown>) => {
+      if (!user || !localKey) {
+        return
+      }
+
+      let nextPayload: Record<string, unknown>
+      try {
+        const cached = localStorage.getItem(localKey)
+        const current = cached ? (JSON.parse(cached) as Record<string, unknown>) : {}
+        nextPayload = updater(current)
+        localStorage.setItem(localKey, JSON.stringify(nextPayload))
+      } catch {
+        setStatus('Could not save changes')
+        return
+      }
+
+      const nextDriveData = parseDriveData(nextPayload)
+      setDriveData(nextDriveData)
+
+      if (import.meta.env.VITE_FIREBASE_API_KEY) {
+        const docRef = doc(db, 'users', user.uid, 'data', 'appData')
+        void setDoc(docRef, nextPayload).catch(() => {
+          setStatus('Saved locally, cloud sync failed')
+        })
+      }
+    },
+    [localKey, user],
+  )
+
+  const restoreDebateDoc = (docId: string) => {
+    persistDriveChanges((current) => {
+      const parsed = parseDriveData(current)
+      const trashed = parsed.deletedDocs.find((item) => item.id === docId)
+      if (!trashed) {
+        return current
+      }
+
+      const { deletedAt: _deletedAt, ...docToRestore } = trashed
+      return {
+        ...current,
+        debateDocs: [docToRestore, ...parsed.debateDocs],
+        deletedDocs: parsed.deletedDocs.filter((item) => item.id !== docId),
+      }
+    })
+    setStatus('File restored')
+  }
+
+  const permanentlyDeleteDebateDoc = (docId: string) => {
+    persistDriveChanges((current) => {
+      const parsed = parseDriveData(current)
+      return {
+        ...current,
+        deletedDocs: parsed.deletedDocs.filter((item) => item.id !== docId),
+      }
+    })
+    setStatus('File permanently deleted')
+  }
 
   /* Load data ---------------------------------------------------- */
   useEffect(() => {
-    if (!user) return
-    const localKey = `debatefiles.v1.${user.uid}`
+    if (!user || !localKey) return
 
-    // Show cached data immediately
     try {
       const cached = localStorage.getItem(localKey)
       if (cached) {
-        const parsed = JSON.parse(cached)
-        setDriveData({
-          debateDocs: parsed.debateDocs ?? [],
-          folders: (parsed.folders ?? []).map((f: DebateFolder, i: number) => ({
-            ...f,
-            parentFolderId: f.parentFolderId ?? null,
-            order: f.order ?? i,
-          })),
-          speechDocs: parsed.speechDocs ?? [],
-        })
+        setDriveData(parseDriveData(JSON.parse(cached)))
         setLoading(false)
       }
     } catch { /* ignore */ }
 
-    // Then sync from Firestore
     const docRef = doc(db, 'users', user.uid, 'data', 'appData')
     getDoc(docRef)
       .then((snap) => {
         if (snap.exists()) {
-          const parsed = snap.data()
-          setDriveData({
-            debateDocs: parsed.debateDocs ?? [],
-            folders: (parsed.folders ?? []).map((f: DebateFolder, i: number) => ({
-              ...f,
-              parentFolderId: f.parentFolderId ?? null,
-              order: f.order ?? i,
-            })),
-            speechDocs: parsed.speechDocs ?? [],
-          })
+          setDriveData(parseDriveData(snap.data()))
         }
         setLoading(false)
       })
       .catch(() => setLoading(false))
-  }, [user])
+  }, [localKey, user])
 
   /* Derived -------------------------------------------------------- */
   const folders = useMemo(
@@ -123,6 +197,8 @@ export default function Drive() {
     if (!query) return base
     return base.filter((d) => d.title.toLowerCase().includes(query.toLowerCase()))
   }, [driveData, query])
+
+  const deletedDocs = useMemo(() => driveData?.deletedDocs ?? [], [driveData])
 
   const allFiles = useMemo(() => {
     if (!query) return []
@@ -149,6 +225,7 @@ export default function Drive() {
   const totalFiles = driveData?.debateDocs.length ?? 0
   const totalFolders = driveData?.folders.length ?? 0
   const totalSpeech = driveData?.speechDocs.length ?? 0
+  const totalDeleted = deletedDocs.length
 
   /* Open a debate doc in the app ---------------------------------- */
   const openDoc = (docId: string) => {
@@ -157,6 +234,14 @@ export default function Drive() {
 
   const openSpeechDoc = (docId: string) => {
     navigate('/app', { state: { openSpeechDocId: docId } })
+  }
+
+  const switchTab = (tab: DriveTab) => {
+    setActiveTab(tab)
+    setQuery('')
+    if (tab === 'files') {
+      setCurrentFolderId(null)
+    }
   }
 
   return (
@@ -178,6 +263,7 @@ export default function Drive() {
             placeholder="Search files…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            disabled={activeTab === 'deleted'}
           />
         </div>
         <div className="drive-nav-right">
@@ -195,15 +281,22 @@ export default function Drive() {
         <aside className="drive-sidebar">
           <button
             className={`drive-sidebar-item ${activeTab === 'files' ? 'drive-sidebar-item-active' : ''}`}
-            onClick={() => { setActiveTab('files'); setCurrentFolderId(null); setQuery('') }}
+            onClick={() => switchTab('files')}
           >
             📁 My Files
           </button>
           <button
             className={`drive-sidebar-item ${activeTab === 'speech' ? 'drive-sidebar-item-active' : ''}`}
-            onClick={() => { setActiveTab('speech'); setQuery('') }}
+            onClick={() => switchTab('speech')}
           >
             🎤 Speech Docs
+          </button>
+          <button
+            className={`drive-sidebar-item ${activeTab === 'deleted' ? 'drive-sidebar-item-active' : ''}`}
+            onClick={() => switchTab('deleted')}
+          >
+            🗑 Deleted
+            {totalDeleted > 0 ? ` (${totalDeleted})` : ''}
           </button>
           <div className="drive-sidebar-divider" />
           <button className="drive-sidebar-item" onClick={() => navigate('/app')}>
@@ -213,41 +306,54 @@ export default function Drive() {
             <div className="drive-stat-row"><span>{totalFiles}</span> debate files</div>
             <div className="drive-stat-row"><span>{totalFolders}</span> folders</div>
             <div className="drive-stat-row"><span>{totalSpeech}</span> speech docs</div>
+            {totalDeleted > 0 ? (
+              <div className="drive-stat-row"><span>{totalDeleted}</span> deleted</div>
+            ) : null}
           </div>
         </aside>
 
         {/* Main */}
         <main className="drive-main">
+          {status ? <p className="drive-status">{status}</p> : null}
+
           {/* Toolbar */}
           <div className="drive-toolbar">
             <div className="drive-breadcrumb">
-              <button
-                className="drive-crumb"
-                onClick={() => setCurrentFolderId(null)}
-              >
-                My Drive
-              </button>
-              {breadcrumb.map((f) => (
-                <span key={f.id} className="drive-crumb-group">
-                  <span className="drive-crumb-sep">›</span>
-                  <button className="drive-crumb" onClick={() => setCurrentFolderId(f.id)}>
-                    {f.name}
+              {activeTab === 'deleted' ? (
+                <span className="drive-crumb drive-crumb-static">Deleted</span>
+              ) : (
+                <>
+                  <button
+                    className="drive-crumb"
+                    onClick={() => setCurrentFolderId(null)}
+                  >
+                    My Drive
                   </button>
-                </span>
-              ))}
+                  {breadcrumb.map((f) => (
+                    <span key={f.id} className="drive-crumb-group">
+                      <span className="drive-crumb-sep">›</span>
+                      <button className="drive-crumb" onClick={() => setCurrentFolderId(f.id)}>
+                        {f.name}
+                      </button>
+                    </span>
+                  ))}
+                </>
+              )}
             </div>
-            <div className="drive-view-toggle">
-              <button
-                className={`drive-view-btn ${view === 'grid' ? 'drive-view-btn-active' : ''}`}
-                onClick={() => setView('grid')}
-                title="Grid view"
-              >⊞</button>
-              <button
-                className={`drive-view-btn ${view === 'list' ? 'drive-view-btn-active' : ''}`}
-                onClick={() => setView('list')}
-                title="List view"
-              >☰</button>
-            </div>
+            {activeTab !== 'deleted' ? (
+              <div className="drive-view-toggle">
+                <button
+                  className={`drive-view-btn ${view === 'grid' ? 'drive-view-btn-active' : ''}`}
+                  onClick={() => setView('grid')}
+                  title="Grid view"
+                >⊞</button>
+                <button
+                  className={`drive-view-btn ${view === 'list' ? 'drive-view-btn-active' : ''}`}
+                  onClick={() => setView('list')}
+                  title="List view"
+                >☰</button>
+              </div>
+            ) : null}
           </div>
 
           {loading ? (
@@ -255,6 +361,48 @@ export default function Drive() {
               <div className="drive-empty-icon">⏳</div>
               <p>Loading your files…</p>
             </div>
+          ) : activeTab === 'deleted' ? (
+            <>
+              <p className="drive-section-label">DELETED FILES</p>
+              <p className="drive-deleted-hint">
+                Restore files to bring them back to your drive, or delete them forever.
+              </p>
+              {deletedDocs.length === 0 ? (
+                <div className="drive-empty">
+                  <div className="drive-empty-icon">🗑</div>
+                  <p>No deleted files.</p>
+                </div>
+              ) : (
+                <div className="drive-deleted-list">
+                  {deletedDocs.map((doc) => (
+                    <div key={doc.id} className="drive-deleted-item">
+                      <div className="drive-deleted-item-main">
+                        <span className="drive-deleted-item-icon">📄</span>
+                        <div>
+                          <div className="drive-deleted-item-title">{doc.title}</div>
+                          <div className="drive-deleted-item-meta">
+                            Deleted {fmtDateTime(doc.deletedAt)} · Updated {fmt(doc.updatedAt)}
+                          </div>
+                          <div className="drive-deleted-item-snippet">{stripHtml(doc.content)}</div>
+                        </div>
+                      </div>
+                      <div className="drive-deleted-item-actions">
+                        <button type="button" onClick={() => restoreDebateDoc(doc.id)}>
+                          Restore
+                        </button>
+                        <button
+                          type="button"
+                          className="danger"
+                          onClick={() => permanentlyDeleteDebateDoc(doc.id)}
+                        >
+                          Delete Forever
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           ) : activeTab === 'speech' ? (
             /* ── Speech docs ── */
             <>

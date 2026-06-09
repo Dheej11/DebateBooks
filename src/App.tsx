@@ -2320,7 +2320,7 @@ function App() {
     })
 
     dismissContextMenu()
-    setStatus('Moved to Recently Deleted')
+    setStatus('File deleted')
   }
 
   const restoreDebateDoc = (docId: string) => {
@@ -3660,7 +3660,7 @@ function App() {
                   className="context-menu-danger"
                   onClick={() => moveDebateDocToTrash(activeContextDocId)}
                 >
-                  Move to Recently Deleted
+                  Delete
                 </button>
               </div>
             ) : null}
