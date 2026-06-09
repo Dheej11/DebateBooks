@@ -809,6 +809,9 @@ function App() {
     startRatio: number
     containerWidth: number
   } | null>(null)
+  const editorHistoryRef = useRef<Map<string, { undo: string[]; redo: string[] }>>(new Map())
+  const lastEditorContentRef = useRef<Map<string, string>>(new Map())
+  const isRestoringHistoryRef = useRef(false)
 
   const activeDebateDoc = useMemo(
     () => data.debateDocs.find((doc) => doc.id === data.activeDebateDocId) ?? null,
@@ -967,6 +970,18 @@ function App() {
       speechEditorRef.current.innerHTML = activeSpeechDoc.content
     }
   }, [activeSpeechDoc?.id, activeSpeechDoc?.content])
+
+  useEffect(() => {
+    if (activeDebateDoc) {
+      lastEditorContentRef.current.set(`debate:${activeDebateDoc.id}`, activeDebateDoc.content)
+    }
+  }, [activeDebateDoc?.id])
+
+  useEffect(() => {
+    if (activeSpeechDoc) {
+      lastEditorContentRef.current.set(`speech:${activeSpeechDoc.id}`, activeSpeechDoc.content)
+    }
+  }, [activeSpeechDoc?.id])
 
   useEffect(() => {
     setActiveTextColor(data.settings.textStyles.defaultText.color)
@@ -1266,6 +1281,150 @@ function App() {
   const getActiveEditorElement = () =>
     activeEditorTarget === 'speech' ? speechEditorRef.current : editorRef.current
 
+  const getEditorHistoryKey = (target: PrimaryView, docId: string) => `${target}:${docId}`
+
+  const getCurrentHistoryKey = () => {
+    if (activeEditorTarget === 'speech' && activeSpeechDoc) {
+      return getEditorHistoryKey('speech', activeSpeechDoc.id)
+    }
+    if (activeDebateDoc) {
+      return getEditorHistoryKey('debate', activeDebateDoc.id)
+    }
+    return null
+  }
+
+  const ensureEditorHistory = (key: string) => {
+    let history = editorHistoryRef.current.get(key)
+    if (!history) {
+      history = { undo: [], redo: [] }
+      editorHistoryRef.current.set(key, history)
+    }
+    return history
+  }
+
+  const pushUndoState = (key: string, previousContent: string) => {
+    const history = ensureEditorHistory(key)
+    if (
+      history.undo.length > 0 &&
+      history.undo[history.undo.length - 1] === previousContent
+    ) {
+      return
+    }
+    history.undo.push(previousContent)
+    if (history.undo.length > 100) {
+      history.undo.shift()
+    }
+    history.redo = []
+  }
+
+  const recordEditorHistory = (
+    key: string,
+    previousContent: string,
+    nextContent: string,
+  ) => {
+    if (isRestoringHistoryRef.current || previousContent === nextContent) {
+      return
+    }
+    pushUndoState(key, previousContent)
+  }
+
+  const restoreEditorContent = (content: string, target: PrimaryView) => {
+    isRestoringHistoryRef.current = true
+    const editor = target === 'speech' ? speechEditorRef.current : editorRef.current
+    if (editor) {
+      editor.innerHTML = content
+    }
+    if (target === 'speech' && activeSpeechDoc) {
+      mutateSpeechDoc(activeSpeechDoc.id, (doc) => {
+        doc.content = content
+      })
+    } else {
+      mutateActiveDebateDoc((doc) => {
+        doc.content = content
+      })
+    }
+    const key = getCurrentHistoryKey()
+    if (key) {
+      lastEditorContentRef.current.set(key, content)
+    }
+    isRestoringHistoryRef.current = false
+  }
+
+  const undoEditorChange = () => {
+    const key = getCurrentHistoryKey()
+    if (!key) {
+      return false
+    }
+
+    const history = ensureEditorHistory(key)
+    if (history.undo.length === 0) {
+      return false
+    }
+
+    const editor = getActiveEditorElement()
+    if (!editor) {
+      return false
+    }
+
+    const currentContent = editor.innerHTML
+    const previousContent = history.undo.pop()!
+    history.redo.push(currentContent)
+    restoreEditorContent(previousContent, activeEditorTarget)
+    setStatus('Undo')
+    return true
+  }
+
+  const redoEditorChange = () => {
+    const key = getCurrentHistoryKey()
+    if (!key) {
+      return false
+    }
+
+    const history = ensureEditorHistory(key)
+    if (history.redo.length === 0) {
+      return false
+    }
+
+    const editor = getActiveEditorElement()
+    if (!editor) {
+      return false
+    }
+
+    const currentContent = editor.innerHTML
+    const nextContent = history.redo.pop()!
+    history.undo.push(currentContent)
+    restoreEditorContent(nextContent, activeEditorTarget)
+    setStatus('Redo')
+    return true
+  }
+
+  const collapseWhitespaceInNode = (node: Node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      node.textContent = node.textContent?.replace(/\s+/g, ' ') ?? ''
+      return
+    }
+
+    Array.from(node.childNodes).forEach(collapseWhitespaceInNode)
+  }
+
+  const trimBoundaryWhitespace = (root: Node) => {
+    const textNodes: Text[] = []
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+    let current = walker.nextNode()
+    while (current) {
+      textNodes.push(current as Text)
+      current = walker.nextNode()
+    }
+
+    if (textNodes.length === 0) {
+      return
+    }
+
+    textNodes[0].textContent = textNodes[0].textContent?.replace(/^\s+/, '') ?? ''
+    const lastNode = textNodes[textNodes.length - 1]
+    lastNode.textContent = lastNode.textContent?.replace(/\s+$/, '') ?? ''
+  }
+
   const saveCurrentSelection = () => {
     const editor = getActiveEditorElement()
     const selection = window.getSelection()
@@ -1308,14 +1467,55 @@ function App() {
   }
 
   const condenseSelection = () => {
-    if (!editorRef.current) {
+    const targetEditor = getActiveEditorElement()
+    if (!targetEditor) {
       return
     }
 
-    const source = editorRef.current.innerText
-    const condensed = source.replace(/\s+/g, ' ').trim()
-    editorRef.current.innerHTML = condensed ? `<p>${condensed}</p>` : ''
-    onEditorInput()
+    const selection = window.getSelection()
+    const saved = savedSelectionRef.current
+    let range: Range | null = null
+
+    if (
+      saved &&
+      !saved.collapsed &&
+      targetEditor.contains(saved.commonAncestorContainer)
+    ) {
+      range = saved.cloneRange()
+    } else if (
+      selection &&
+      selection.rangeCount > 0 &&
+      !selection.isCollapsed &&
+      targetEditor.contains(selection.getRangeAt(0).commonAncestorContainer)
+    ) {
+      range = selection.getRangeAt(0).cloneRange()
+    }
+
+    if (!range) {
+      setStatus('Select text to condense')
+      return
+    }
+
+    const fragment = range.cloneContents()
+    const wrapper = document.createElement('div')
+    wrapper.appendChild(fragment)
+    collapseWhitespaceInNode(wrapper)
+    trimBoundaryWhitespace(wrapper)
+
+    range.deleteContents()
+    const insertFragment = document.createDocumentFragment()
+    while (wrapper.firstChild) {
+      insertFragment.appendChild(wrapper.firstChild)
+    }
+    range.insertNode(insertFragment)
+
+    targetEditor.focus()
+    if (activeEditorTarget === 'speech') {
+      onSpeechEditorInput()
+    } else {
+      onEditorInput()
+    }
+    setStatus('Selection condensed')
   }
 
   const shrinkUncutText = () => {
@@ -1425,6 +1625,16 @@ function App() {
   }
 
   const handleEditorKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
+      event.preventDefault()
+      if (event.shiftKey) {
+        redoEditorChange()
+      } else {
+        undoEditorChange()
+      }
+      return
+    }
+
     if (event.key === 'Enter') {
       const selection = window.getSelection()
       if (!selection || selection.rangeCount === 0) return
@@ -1974,10 +2184,15 @@ function App() {
   }
 
   const onEditorInput = () => {
-    if (!editorRef.current) {
+    if (!editorRef.current || !activeDebateDoc) {
       return
     }
+    const key = getEditorHistoryKey('debate', activeDebateDoc.id)
     const nextContent = editorRef.current.innerHTML
+    const previousContent =
+      lastEditorContentRef.current.get(key) ?? activeDebateDoc.content
+    recordEditorHistory(key, previousContent, nextContent)
+    lastEditorContentRef.current.set(key, nextContent)
     mutateActiveDebateDoc((doc) => {
       doc.content = nextContent
     })
@@ -1988,7 +2203,12 @@ function App() {
       return
     }
 
+    const key = getEditorHistoryKey('speech', activeSpeechDoc.id)
     const nextContent = speechEditorRef.current.innerHTML
+    const previousContent =
+      lastEditorContentRef.current.get(key) ?? activeSpeechDoc.content
+    recordEditorHistory(key, previousContent, nextContent)
+    lastEditorContentRef.current.set(key, nextContent)
     mutateSpeechDoc(activeSpeechDoc.id, (doc) => {
       doc.content = nextContent
     })
