@@ -105,96 +105,62 @@
   color: var(--text-h);
 }
 
-.debate-timer-custom {
+.debate-timer-format-switch {
   display: grid;
-  grid-template-columns: 1fr 1fr auto;
-  gap: 8px;
-  align-items: end;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
 }
 
-.debate-timer-custom label {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 12px;
+.debate-timer-format-switch button {
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
   color: var(--text);
-}
-
-.debate-timer-custom input {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg);
-  color: var(--text-h);
-  padding: 8px 10px;
-  font: inherit;
-}
-
-.debate-timer-custom button {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg);
-  color: var(--text-h);
-  padding: 8px 12px;
+  padding: 10px 8px;
   font: inherit;
   font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
-  height: 36px;
 }
 
-.debate-timer-custom button:hover {
+.debate-timer-format-switch button:hover {
+  color: var(--text-h);
+  background: var(--accent-bg);
+}
+
+.debate-timer-format-switch button.active {
   background: var(--accent-bg);
   border-color: var(--accent-border);
+  color: var(--text-h);
 }
 
-.debate-timer-presets h2 {
-  margin: 0 0 8px;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text);
-}
-
-.debate-timer-preset-group + .debate-timer-preset-group {
-  margin-top: 12px;
-}
-
-.debate-timer-preset-group h3 {
-  margin: 0 0 6px;
-  font-size: 11px;
-  color: var(--text);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.debate-timer-preset-grid {
+.debate-timer-duration-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
+  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+  gap: 8px;
 }
 
-.debate-timer-preset-grid button {
+.debate-timer-duration-grid button {
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 12px;
   background: var(--bg);
   color: var(--text-h);
-  padding: 8px 10px;
+  padding: 16px 12px;
   font: inherit;
-  font-size: 12px;
-  text-align: left;
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
   cursor: pointer;
 }
 
-.debate-timer-preset-grid button:hover,
-.debate-timer-preset-grid button.active {
+.debate-timer-duration-grid button:hover,
+.debate-timer-duration-grid button.active {
   background: var(--accent-bg);
   border-color: var(--accent-border);
-}
-
-.debate-timer-preset-grid button span {
-  display: block;
-  margin-top: 2px;
-  font-size: 11px;
-  color: var(--text);
 }
 
 .debate-timer-footer {

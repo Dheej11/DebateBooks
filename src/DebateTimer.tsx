@@ -1,30 +1,31 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
-  debateTimerPresets,
+  debateFormats,
+  formatDurationLabel,
+  formatDurations,
   formatTimerDisplay,
-  type DebateTimerPreset,
+  type DebateFormat,
 } from './debateTimerPresets'
 import './DebateTimer.css'
 
-const defaultPreset = debateTimerPresets.find((preset) => preset.label === '1AC / 2AC / 2NC')
-  ?? debateTimerPresets[0]
-
-const presetGroups = ['Policy', 'LD', 'Quick'] as const
+const defaultFormat: DebateFormat = 'Policy'
+const defaultDuration = formatDurations[defaultFormat][formatDurations[defaultFormat].length - 1]
 
 export default function DebateTimer() {
   const [searchParams] = useSearchParams()
   const theme = searchParams.get('theme') ?? 'dark'
 
-  const [label, setLabel] = useState(defaultPreset.label)
-  const [durationSeconds, setDurationSeconds] = useState(defaultPreset.seconds)
-  const [remainingSeconds, setRemainingSeconds] = useState(defaultPreset.seconds)
+  const [format, setFormat] = useState<DebateFormat>(defaultFormat)
+  const [durationSeconds, setDurationSeconds] = useState(defaultDuration)
+  const [remainingSeconds, setRemainingSeconds] = useState(defaultDuration)
   const [isRunning, setIsRunning] = useState(false)
-  const [customMinutes, setCustomMinutes] = useState('8')
-  const [customSeconds, setCustomSeconds] = useState('0')
 
   const endTimeRef = useRef<number | null>(null)
   const intervalRef = useRef<number | null>(null)
+
+  const timerLabel = `${format} · ${formatDurationLabel(durationSeconds)}`
+  const availableDurations = formatDurations[format]
 
   const clockClassName = useMemo(() => {
     if (remainingSeconds < 0) {
@@ -62,25 +63,41 @@ export default function DebateTimer() {
     }
   }, [])
 
-  const applyPreset = useCallback((preset: DebateTimerPreset) => {
+  const syncDocumentTitle = useCallback((seconds: number, currentFormat: DebateFormat) => {
+    document.title = `${formatTimerDisplay(seconds)} — ${currentFormat}`
+  }, [])
+
+  const selectDuration = useCallback((seconds: number, currentFormat: DebateFormat = format) => {
     stopInterval()
     endTimeRef.current = null
     setIsRunning(false)
-    setLabel(preset.label)
-    setDurationSeconds(preset.seconds)
-    setRemainingSeconds(preset.seconds)
-    setCustomMinutes(String(Math.floor(preset.seconds / 60)))
-    setCustomSeconds(String(preset.seconds % 60))
-    document.title = `${formatTimerDisplay(preset.seconds)} — ${preset.label}`
-  }, [stopInterval])
+    setDurationSeconds(seconds)
+    setRemainingSeconds(seconds)
+    syncDocumentTitle(seconds, currentFormat)
+  }, [format, stopInterval, syncDocumentTitle])
+
+  const selectFormat = useCallback((nextFormat: DebateFormat) => {
+    stopInterval()
+    endTimeRef.current = null
+    setIsRunning(false)
+    setFormat(nextFormat)
+
+    const durations = formatDurations[nextFormat]
+    const nextDuration =
+      durations.find((seconds) => seconds === durationSeconds) ?? durations[durations.length - 1]
+
+    setDurationSeconds(nextDuration)
+    setRemainingSeconds(nextDuration)
+    syncDocumentTitle(nextDuration, nextFormat)
+  }, [durationSeconds, stopInterval, syncDocumentTitle])
 
   const resetTimer = useCallback(() => {
     stopInterval()
     endTimeRef.current = null
     setIsRunning(false)
     setRemainingSeconds(durationSeconds)
-    document.title = `${formatTimerDisplay(durationSeconds)} — ${label}`
-  }, [durationSeconds, label, stopInterval])
+    syncDocumentTitle(durationSeconds, format)
+  }, [durationSeconds, format, stopInterval, syncDocumentTitle])
 
   const startTimer = useCallback(() => {
     endTimeRef.current = Date.now() + remainingSeconds * 1000
@@ -101,34 +118,16 @@ export default function DebateTimer() {
     startTimer()
   }, [isRunning, pauseTimer, startTimer])
 
-  const applyCustomDuration = useCallback(() => {
-    const minutes = Math.max(0, Number.parseInt(customMinutes, 10) || 0)
-    const seconds = Math.min(59, Math.max(0, Number.parseInt(customSeconds, 10) || 0))
-    const total = minutes * 60 + seconds
-
-    if (total <= 0) {
-      return
-    }
-
-    stopInterval()
-    endTimeRef.current = null
-    setIsRunning(false)
-    setLabel('Custom')
-    setDurationSeconds(total)
-    setRemainingSeconds(total)
-    document.title = `${formatTimerDisplay(total)} — Custom`
-  }, [customMinutes, customSeconds, stopInterval])
-
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
   }, [theme])
 
   useEffect(() => {
-    document.title = `${formatTimerDisplay(defaultPreset.seconds)} — ${defaultPreset.label}`
+    syncDocumentTitle(defaultDuration, defaultFormat)
     return () => {
       document.title = 'DebateFiles'
     }
-  }, [])
+  }, [syncDocumentTitle])
 
   useEffect(() => {
     if (!isRunning || endTimeRef.current === null) {
@@ -142,20 +141,16 @@ export default function DebateTimer() {
       }
       const nextRemaining = Math.ceil((endTimeRef.current - Date.now()) / 1000)
       setRemainingSeconds(nextRemaining)
-      document.title = `${formatTimerDisplay(nextRemaining)} — ${label}`
+      syncDocumentTitle(nextRemaining, format)
     }
 
     tick()
     intervalRef.current = window.setInterval(tick, 100)
     return stopInterval
-  }, [isRunning, label, stopInterval])
+  }, [format, isRunning, stopInterval, syncDocumentTitle])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.target instanceof HTMLInputElement) {
-        return
-      }
-
       if (event.code === 'Space') {
         event.preventDefault()
         toggleTimer()
@@ -182,7 +177,7 @@ export default function DebateTimer() {
 
       <div className="debate-timer-body">
         <section className="debate-timer-display">
-          <p className="debate-timer-label">{label}</p>
+          <p className="debate-timer-label">{timerLabel}</p>
           <p className={clockClassName}>{formatTimerDisplay(remainingSeconds)}</p>
           <p className="debate-timer-status">{statusText}</p>
         </section>
@@ -197,62 +192,43 @@ export default function DebateTimer() {
             onClick={() => {
               pauseTimer()
               setRemainingSeconds(0)
-              document.title = `${formatTimerDisplay(0)} — ${label}`
+              syncDocumentTitle(0, format)
             }}
           >
             End Now
           </button>
         </section>
 
-        <section className="debate-timer-custom">
-          <label>
-            Minutes
-            <input
-              type="number"
-              min="0"
-              value={customMinutes}
-              onChange={(event) => setCustomMinutes(event.target.value)}
-            />
-          </label>
-          <label>
-            Seconds
-            <input
-              type="number"
-              min="0"
-              max="59"
-              value={customSeconds}
-              onChange={(event) => setCustomSeconds(event.target.value)}
-            />
-          </label>
-          <button type="button" onClick={applyCustomDuration}>Set</button>
+        <section className="debate-timer-format">
+          <div className="debate-timer-format-switch" role="tablist" aria-label="Debate format">
+            {debateFormats.map((option) => (
+              <button
+                key={option}
+                type="button"
+                role="tab"
+                aria-selected={format === option}
+                className={format === option ? 'active' : ''}
+                onClick={() => selectFormat(option)}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
         </section>
 
-        <section className="debate-timer-presets">
-          <h2>Presets</h2>
-          {presetGroups.map((group) => (
-            <div key={group} className="debate-timer-preset-group">
-              <h3>{group}</h3>
-              <div className="debate-timer-preset-grid">
-                {debateTimerPresets
-                  .filter((preset) => preset.group === group)
-                  .map((preset) => (
-                    <button
-                      key={`${group}-${preset.label}`}
-                      type="button"
-                      className={
-                        label === preset.label && durationSeconds === preset.seconds
-                          ? 'active'
-                          : ''
-                      }
-                      onClick={() => applyPreset(preset)}
-                    >
-                      {preset.label}
-                      <span>{formatTimerDisplay(preset.seconds)}</span>
-                    </button>
-                  ))}
-              </div>
-            </div>
-          ))}
+        <section className="debate-timer-durations">
+          <div className="debate-timer-duration-grid">
+            {availableDurations.map((seconds) => (
+              <button
+                key={`${format}-${seconds}`}
+                type="button"
+                className={durationSeconds === seconds ? 'active' : ''}
+                onClick={() => selectDuration(seconds)}
+              >
+                {formatDurationLabel(seconds)}
+              </button>
+            ))}
+          </div>
         </section>
       </div>
 
